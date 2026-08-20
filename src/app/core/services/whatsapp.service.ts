@@ -51,14 +51,14 @@ export class WhatsappService {
   }
 
   /**
-   * Mensaje de presupuesto con el detalle real (ítems, mano de obra, descuento, total y
-   * vigencia), separado en párrafos para que no quede amontonado. Nunca incluye el recargo
-   * ni ningún otro dato de margen: eso es información interna, no para el cliente.
+   * Mensaje de presupuesto: lista los ítems (sin precio unitario) cuando corresponde, y
+   * manda el total directamente. Nunca incluye mano de obra, descuento, recargo ni ningún
+   * otro dato de costos o margen: eso es información interna, no para el cliente.
    */
   buildQuoteMessage(order: RepairOrder, quote: Quote): string {
     const itemLines = quote.items
       .filter((i) => !/^Recargo\s*\(/i.test(i.description))
-      .map((i) => `• ${i.description} x${i.quantity}: ${formatCurrencyAR(i.quantity * i.unitPrice)}`)
+      .map((i) => `• ${i.description}${i.quantity !== 1 ? ` x${i.quantity}` : ''}`)
       .join('\n');
 
     const blocks: string[] = [
@@ -67,12 +67,6 @@ export class WhatsappService {
     ];
     if (itemLines) {
       blocks.push(itemLines);
-    }
-    if (quote.laborCost > 0) {
-      blocks.push(`Mano de obra: ${formatCurrencyAR(quote.laborCost)}`);
-    }
-    if (quote.discount > 0) {
-      blocks.push(`Descuento: ${formatCurrencyAR(quote.discount)}`);
     }
     blocks.push(`*Total: ${formatCurrencyAR(quote.total)}*`);
     if (quote.validUntil) {

@@ -244,7 +244,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     @if (savingPricing()) {
                       <span class="zf-spinner"></span>
                     }
-                    Guardar presupuesto
+                    Guardar y presupuestar
                   </button>
                 </form>
               }
@@ -321,8 +321,6 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                             >
                               Eliminar
                             </button>
-                          } @else {
-                            <span class="zf-hint quote-locked-hint">🔒 Aprobado: no se puede editar ni eliminar</span>
                           }
                         </div>
                       </div>
