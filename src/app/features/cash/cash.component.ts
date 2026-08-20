@@ -3,7 +3,6 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { CashService } from '../../core/services/cash.service';
-import { RepairOrdersService } from '../../core/services/repair-orders.service';
 import { CASH_MOVEMENT_LABELS, CashMovement, CashMovementType } from '../../models';
 import { ToastService } from '../../shared/components/toast/toast.service';
 
@@ -20,7 +19,7 @@ function todayIso(): string {
       <div class="zf-page-header">
         <div>
           <h1>Caja</h1>
-          <p class="zf-subtitle">Ingresos, egresos y rentabilidad</p>
+          <p class="zf-subtitle">Ingresos y egresos</p>
         </div>
       </div>
 
@@ -54,10 +53,6 @@ function todayIso(): string {
             <span class="stat__value" [class.stat__value--danger]="netResult() < 0">
               {{ netResult() | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}
             </span>
-          </div>
-          <div class="zf-card stat">
-            <span class="stat__label">Margen de reparaciones</span>
-            <span class="stat__value">{{ repairMargin() | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}</span>
           </div>
         </div>
 
@@ -132,7 +127,7 @@ function todayIso(): string {
 
       @media (min-width: 700px) {
         .stat-row {
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
         }
       }
 
@@ -222,13 +217,11 @@ function todayIso(): string {
 })
 export class CashComponent implements OnInit {
   private readonly cashService = inject(CashService);
-  private readonly ordersService = inject(RepairOrdersService);
   private readonly toast = inject(ToastService);
 
   protected readonly movements = signal<CashMovement[]>([]);
   protected readonly loading = signal(true);
   protected readonly registering = signal(false);
-  protected readonly repairMargin = signal(0);
   protected readonly movementLabels = CASH_MOVEMENT_LABELS;
   protected readonly movementTypes: CashMovementType[] = ['ingreso', 'egreso'];
 
@@ -263,12 +256,7 @@ export class CashComponent implements OnInit {
     try {
       const from = `${this.dateFrom}T00:00:00`;
       const to = `${this.dateTo}T23:59:59`;
-      const [movements, orders] = await Promise.all([
-        this.cashService.listBetween(from, to),
-        this.ordersService.list({ dateFrom: from, dateTo: to }),
-      ]);
-      this.movements.set(movements);
-      this.repairMargin.set(orders.reduce((sum, o) => sum + (o.customerPrice - o.internalCost - o.partsCost), 0));
+      this.movements.set(await this.cashService.listBetween(from, to));
     } catch {
       this.toast.error('No se pudo cargar la información de caja.');
     } finally {

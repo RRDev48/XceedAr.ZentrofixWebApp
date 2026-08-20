@@ -79,15 +79,11 @@ export interface RepairOrder {
   status: RepairStatus;
   priority: RepairPriority;
   estimatedCompletionDate: string | null;
-  partsCost: number;
-  laborCost: number;
-  internalCost: number;
   customerPrice: number;
   discount: number;
   total: number;
   deposit: number;
   balanceDue: number;
-  internalNotes: string | null;
   deliveredAt: string | null;
   relatedOrderId: string | null;
   createdAt: string;

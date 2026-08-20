@@ -23,15 +23,11 @@ interface RepairOrderListRow {
   status: RepairStatus;
   priority: RepairPriority;
   estimated_completion_date: string | null;
-  parts_cost: number;
-  labor_cost: number;
-  internal_cost: number;
   customer_price: number;
   discount: number;
   total: number;
   deposit: number;
   balance_due: number;
-  internal_notes: string | null;
   delivered_at: string | null;
   related_order_id: string | null;
   created_at: string;
@@ -59,15 +55,11 @@ function mapRow(row: RepairOrderListRow): RepairOrder {
     status: row.status,
     priority: row.priority,
     estimatedCompletionDate: row.estimated_completion_date,
-    partsCost: Number(row.parts_cost),
-    laborCost: Number(row.labor_cost),
-    internalCost: Number(row.internal_cost),
     customerPrice: Number(row.customer_price),
     discount: Number(row.discount),
     total: Number(row.total),
     deposit: Number(row.deposit),
     balanceDue: Number(row.balance_due),
-    internalNotes: row.internal_notes,
     deliveredAt: row.delivered_at,
     relatedOrderId: row.related_order_id,
     createdAt: row.created_at,
@@ -219,13 +211,9 @@ export class RepairOrdersService {
       recommendedWork: string | null;
       priority: RepairPriority;
       estimatedCompletionDate: string | null;
-      partsCost: number;
-      laborCost: number;
-      internalCost: number;
       customerPrice: number;
       discount: number;
       deposit: number;
-      internalNotes: string | null;
     },
   ): Promise<RepairOrder> {
     const { error } = await this.supabase.client
@@ -237,13 +225,9 @@ export class RepairOrdersService {
         recommended_work: value.recommendedWork?.trim() || null,
         priority: value.priority,
         estimated_completion_date: value.estimatedCompletionDate || null,
-        parts_cost: value.partsCost,
-        labor_cost: value.laborCost,
-        internal_cost: value.internalCost,
         customer_price: value.customerPrice,
         discount: value.discount,
         deposit: value.deposit,
-        internal_notes: value.internalNotes?.trim() || null,
       })
       .eq('id', id);
     if (error) {

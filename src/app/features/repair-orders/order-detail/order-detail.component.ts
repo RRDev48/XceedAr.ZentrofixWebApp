@@ -1576,13 +1576,9 @@ export class OrderDetailComponent implements OnInit {
         recommendedWork: value.recommendedWork || null,
         priority: order.priority,
         estimatedCompletionDate: order.estimatedCompletionDate,
-        partsCost: order.partsCost,
-        laborCost: order.laborCost,
-        internalCost: order.internalCost,
         customerPrice: order.customerPrice,
         discount: order.discount,
         deposit: order.deposit,
-        internalNotes: order.internalNotes,
       });
       this.order.set(updated);
       this.toast.success('Diagnóstico guardado correctamente.');
@@ -1609,13 +1605,9 @@ export class OrderDetailComponent implements OnInit {
         recommendedWork: order.recommendedWork,
         priority: order.priority,
         estimatedCompletionDate: order.estimatedCompletionDate,
-        partsCost: order.partsCost,
-        laborCost: order.laborCost,
-        internalCost: order.internalCost,
         customerPrice: Number(value.customerPrice) || 0,
         discount: Number(value.discount) || 0,
         deposit: order.deposit,
-        internalNotes: order.internalNotes,
       });
       this.order.set(updated);
       this.paymentStatus.set(this.ordersService.paymentStatusOf(updated));
