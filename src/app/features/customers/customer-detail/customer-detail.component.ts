@@ -140,7 +140,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
       .device-card__title,
       .order-card__code {
         font-weight: 700;
-        color: var(--zf-blue-darker);
+        color: var(--zf-text);
       }
 
       .device-card__meta,

@@ -107,7 +107,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
       .customer-card__name {
         font-weight: 700;
-        color: var(--zf-blue-darker);
+        color: var(--zf-text);
         margin-bottom: 0.2rem;
       }
 

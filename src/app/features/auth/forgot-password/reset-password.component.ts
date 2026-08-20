@@ -44,7 +44,8 @@ import { firstErrorMessage } from '../../../shared/utils/form-errors.util';
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(160deg, var(--zf-blue-darker), var(--zf-blue-dark) 55%, var(--zf-blue));
+        background: radial-gradient(circle at 12% 88%, rgba(156, 44, 255, 0.22), transparent 45%),
+          radial-gradient(circle at 88% 8%, rgba(30, 155, 255, 0.22), transparent 45%), var(--zf-bg);
         padding: 1.25rem;
       }
 
@@ -66,7 +67,7 @@ import { firstErrorMessage } from '../../../shared/utils/form-errors.util';
       }
 
       .auth-alert {
-        background: #fdeaea;
+        background: var(--zf-danger-soft);
         color: var(--zf-danger);
         border-radius: var(--zf-radius-sm);
         padding: 0.65rem 0.85rem;

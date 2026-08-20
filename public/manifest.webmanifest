@@ -4,14 +4,14 @@
   "description": "Zentrofix — Gestión técnica de reparaciones de celulares",
   "start_url": "/panel",
   "display": "standalone",
-  "background_color": "#f4f7fb",
-  "theme_color": "#0b2e4f",
+  "background_color": "#08090c",
+  "theme_color": "#08090c",
   "lang": "es-AR",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "48x48",
-      "type": "image/x-icon"
+      "src": "assets/branding/isotipo.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ]
 }

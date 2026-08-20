@@ -310,18 +310,18 @@ type WizardStep = 'cliente' | 'equipo' | 'orden';
         font-weight: 600;
         padding: 0.4rem 0.75rem;
         border-radius: 999px;
-        background: #eef1f5;
+        background: var(--zf-surface-2);
         color: var(--zf-text-muted);
       }
 
       .step.is-active {
-        background: var(--zf-blue-light);
+        background: var(--zf-blue-soft);
         color: var(--zf-blue);
       }
 
       .step.is-done {
-        background: #e6f7ec;
-        color: var(--zf-green-dark);
+        background: var(--zf-purple-soft);
+        color: #c589ff;
       }
 
       .mode-toggle {
@@ -344,13 +344,14 @@ type WizardStep = 'cliente' | 'equipo' | 'orden';
         border: 1px solid var(--zf-border);
         border-radius: var(--zf-radius-sm);
         padding: 0.75rem;
-        background: #fff;
+        background: var(--zf-surface-2);
+        color: var(--zf-text);
         cursor: pointer;
         font-size: 0.9rem;
       }
 
       .result-item:hover {
-        background: #fafcff;
+        background: var(--zf-blue-soft);
         border-color: var(--zf-blue);
       }
 
@@ -376,8 +377,9 @@ type WizardStep = 'cliente' | 'equipo' | 'orden';
       }
 
       .duplicate-warning {
-        background: #fdf3e2;
-        color: #7a5210;
+        background: var(--zf-purple-soft);
+        color: var(--zf-text-secondary);
+        border: 1px solid rgba(156, 44, 255, 0.35);
         border-radius: var(--zf-radius-sm);
         padding: 0.75rem 0.9rem;
         font-size: 0.85rem;

@@ -275,12 +275,13 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
       .totals-row {
         display: flex;
         justify-content: space-between;
-        background: var(--zf-blue-light);
+        background: var(--zf-blue-soft);
+        border: 1px solid rgba(30, 155, 255, 0.3);
         border-radius: var(--zf-radius-sm);
         padding: 0.75rem 0.9rem;
         font-size: 0.88rem;
         margin-bottom: 1rem;
-        color: var(--zf-blue-darker);
+        color: var(--zf-text);
       }
 
       .history-list {
@@ -298,7 +299,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
       .history-item__status {
         font-weight: 700;
-        color: var(--zf-blue-darker);
+        color: var(--zf-text);
       }
 
       .history-item__date {

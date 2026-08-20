@@ -113,8 +113,9 @@ import { CanComponentDeactivate } from '../../../core/guards/unsaved-changes.gua
       }
 
       .duplicate-warning {
-        background: #fdf3e2;
-        color: #7a5210;
+        background: var(--zf-purple-soft);
+        color: var(--zf-text-secondary);
+        border: 1px solid rgba(156, 44, 255, 0.35);
         border-radius: var(--zf-radius-sm);
         padding: 0.75rem 0.9rem;
         font-size: 0.85rem;

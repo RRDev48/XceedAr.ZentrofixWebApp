@@ -108,11 +108,11 @@ interface IndicatorCard {
       }
 
       .indicator-card.tone-green {
-        border-left-color: var(--zf-green);
+        border-left-color: var(--zf-purple);
       }
 
       .indicator-card.tone-warning {
-        border-left-color: var(--zf-warning);
+        border-left-color: var(--zf-purple);
       }
 
       .indicator-card.tone-danger {
@@ -120,9 +120,10 @@ interface IndicatorCard {
       }
 
       .indicator-card__value {
+        font-family: var(--zf-font-heading);
         font-size: 1.5rem;
-        font-weight: 800;
-        color: var(--zf-blue-darker);
+        font-weight: 700;
+        color: var(--zf-text);
       }
 
       .indicator-card__label {
@@ -154,12 +155,12 @@ interface IndicatorCard {
       }
 
       .recent-item:hover {
-        background: #fafcff;
+        background: var(--zf-surface-2);
       }
 
       .recent-item__code {
         font-weight: 700;
-        color: var(--zf-blue-darker);
+        color: var(--zf-text);
         font-size: 0.9rem;
       }
 

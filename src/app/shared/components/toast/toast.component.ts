@@ -43,21 +43,23 @@ import { ToastService } from './toast.service';
         color: #fff;
         font-size: 0.9rem;
         font-weight: 500;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        font-family: var(--zf-font-body);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         cursor: pointer;
         animation: toast-in 0.18s ease-out;
       }
 
       .toast--success {
-        background: #16a34a;
+        background: var(--zf-gradient);
       }
 
       .toast--error {
-        background: #dc2626;
+        background: #b23a3a;
       }
 
       .toast--info {
-        background: #0f3d63;
+        background: var(--zf-surface-2);
       }
 
       @keyframes toast-in {

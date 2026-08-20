@@ -48,3 +48,8 @@ Thumbs.db
 /src/environments/environment.prod.ts
 .env
 .env.local
+.vercel
+.env*
+
+# Material de marca sin procesar (logos ya copiados a public/assets/branding, PDFs de referencia)
+/01_Branding

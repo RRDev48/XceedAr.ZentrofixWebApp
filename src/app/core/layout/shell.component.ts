@@ -22,7 +22,7 @@ const NAV_ITEMS: NavItem[] = [
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand__mark">ZF</span>
+          <img src="assets/branding/isotipo.png" alt="Zentrofix" class="brand__mark" />
           <div>
             <div class="brand__name">Zentrofix</div>
             <div class="brand__sub">Gestión técnica</div>
@@ -50,7 +50,10 @@ const NAV_ITEMS: NavItem[] = [
 
       <div class="main">
         <header class="topbar">
-          <div class="topbar__brand">Zentrofix — Gestión técnica</div>
+          <div class="topbar__brand">
+            <img src="assets/branding/isotipo.png" alt="Zentrofix" class="topbar__mark" />
+            Zentrofix
+          </div>
           <a routerLink="/ordenes/nueva" class="zf-btn zf-btn--primary zf-btn--sm topbar__cta">+ Orden</a>
         </header>
 
@@ -94,7 +97,8 @@ const NAV_ITEMS: NavItem[] = [
         align-items: center;
         justify-content: space-between;
         padding: 0.9rem 1.1rem;
-        background: var(--zf-blue-darker);
+        background: var(--zf-surface);
+        border-bottom: 1px solid var(--zf-border-soft);
         color: #fff;
         position: sticky;
         top: 0;
@@ -102,8 +106,18 @@ const NAV_ITEMS: NavItem[] = [
       }
 
       .topbar__brand {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: var(--zf-font-heading);
         font-weight: 700;
         font-size: 1rem;
+      }
+
+      .topbar__mark {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
       }
 
       .content {
@@ -116,11 +130,11 @@ const NAV_ITEMS: NavItem[] = [
         left: 0;
         right: 0;
         height: var(--zf-bottomnav-height);
-        background: #fff;
-        border-top: 1px solid var(--zf-border);
+        background: var(--zf-surface);
+        border-top: 1px solid var(--zf-border-soft);
         display: flex;
         z-index: 30;
-        box-shadow: 0 -4px 16px rgba(15, 35, 65, 0.06);
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
       }
 
       .bottom-nav__link {
@@ -145,7 +159,7 @@ const NAV_ITEMS: NavItem[] = [
       }
 
       .bottom-nav__link--cta {
-        color: var(--zf-green);
+        color: var(--zf-purple);
       }
 
       @media (min-width: 900px) {
@@ -157,7 +171,8 @@ const NAV_ITEMS: NavItem[] = [
           display: flex;
           flex-direction: column;
           width: var(--zf-sidebar-width);
-          background: var(--zf-blue-darker);
+          background: var(--zf-surface);
+          border-right: 1px solid var(--zf-border-soft);
           color: #fff;
           padding: 1.25rem 1rem;
           position: sticky;
@@ -174,25 +189,20 @@ const NAV_ITEMS: NavItem[] = [
         }
 
         .brand__mark {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
-          background: var(--zf-blue);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 0.85rem;
+          width: 36px;
+          height: 36px;
+          object-fit: contain;
         }
 
         .brand__name {
+          font-family: var(--zf-font-heading);
           font-weight: 700;
           font-size: 1.05rem;
         }
 
         .brand__sub {
           font-size: 0.72rem;
-          opacity: 0.7;
+          color: var(--zf-text-muted);
         }
 
         .sidebar__nav {

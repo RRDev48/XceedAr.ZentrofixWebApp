@@ -21,7 +21,9 @@ Alternativamente, en CI/CD (por ejemplo Vercel) podés definir las variables de 
 
 1. Abrí tu proyecto en supabase.com → **SQL Editor**.
 2. Pegá y ejecutá el contenido completo de [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql). Crea todas las tablas, tipos, índices, triggers, la vista `repair_orders_list`, la función `change_repair_order_status` y las políticas de Row Level Security.
-3. Verificá en **Table Editor** que las tablas se crearon y que **RLS está activado** (candado verde) en cada una.
+3. Pegá y ejecutá también [`supabase/migrations/0002_secure_signup.sql`](supabase/migrations/0002_secure_signup.sql) (endurece el alta de usuarios — ver sección de seguridad más abajo). **No te lo saltees**: sin este paso, cualquiera que conozca la anon key pública podría autoregistrarse con acceso administrativo.
+4. Verificá en **Table Editor** que las tablas se crearon y que **RLS está activado** (candado verde) en cada una.
+5. Recomendado (defensa adicional): en **Authentication → Sign In / Providers → Email**, desactivá "Allow new users to sign up". Los usuarios de Zentrofix se crean siempre desde **Authentication → Users → Add user**, nunca por autoregistro.
 
 La migración es idempotente en el sentido de que crea todo desde cero: si necesitás volver a ejecutarla en un proyecto ya inicializado, primero hay que limpiar el esquema `public`.
 
@@ -34,11 +36,13 @@ No hay una pantalla de "crear cuenta" (por diseño: Zentrofix es un local único
 3. Al crear el usuario, un trigger de la base de datos (`handle_new_auth_user`) genera automáticamente su fila en `profiles` con `role = 'admin'` y `active = true`.
 4. Ingresá a la aplicación con ese correo y contraseña.
 
-Para usuarios futuros de "Recepción" o "Técnico" (Etapa 5), se crean de la misma forma y luego se actualiza su rol manualmente:
+Para usuarios futuros de "Recepción" o "Técnico" (Etapa 5): si el registro público llegara a estar habilitado, cualquier cuenta creada por ese medio nace **inactiva** (`active = false`) y sin acceso a ningún dato. El Administrador debe activarla manualmente y asignarle el rol correspondiente:
 
 ```sql
-update profiles set role = 'recepcion' where email = 'recepcion@zentrofix.com';
+update profiles set active = true, role = 'recepcion' where email = 'recepcion@zentrofix.com';
 ```
+
+La vía recomendada sigue siendo crear la cuenta directamente desde **Authentication → Users → Add user** en el Dashboard, igual que el Administrador.
 
 ## 5. Desarrollo local
 
