@@ -1,0 +1,17 @@
+{
+  "name": "Gestor Zentrofix",
+  "short_name": "Zentrofix",
+  "description": "Zentrofix — Gestión técnica de reparaciones de celulares",
+  "start_url": "/panel",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#0b2e4f",
+  "lang": "es-AR",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

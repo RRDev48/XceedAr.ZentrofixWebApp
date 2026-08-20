@@ -1,0 +1,73 @@
+import { Injectable } from '@angular/core';
+import { SupabaseClientService } from './supabase-client.service';
+import { AuthService } from '../auth/auth.service';
+import { buildWhatsAppLink } from '../../shared/utils/phone.util';
+import { CommunicationTemplateType, REPAIR_STATUS_LABELS, RepairOrder } from '../../models';
+
+const TEMPLATES: Record<CommunicationTemplateType, (o: RepairOrder) => string> = {
+  confirmacion_recepcion: (o) =>
+    `Hola, ${o.customerName}. Somos Zentrofix. Recibimos tu equipo ${o.deviceLabel} bajo la orden ${o.code}. Te avisamos apenas tengamos novedades. Ante cualquier consulta, respondé este mensaje.`,
+  diagnostico_disponible: (o) =>
+    `Hola, ${o.customerName}. Ya tenemos el diagnóstico de tu equipo ${o.deviceLabel} (orden ${o.code}). Te contamos los detalles a la brevedad.`,
+  presupuesto_listo: (o) =>
+    `Hola, ${o.customerName}. Tu presupuesto para el equipo ${o.deviceLabel} (orden ${o.code}) ya está listo. Total: $${o.total.toLocaleString('es-AR')}. Quedamos atentos a tu confirmación.`,
+  recordatorio_aprobacion: (o) =>
+    `Hola, ${o.customerName}. Te recordamos que tu presupuesto de la orden ${o.code} está pendiente de aprobación. Cualquier consulta, respondé este mensaje.`,
+  esperando_repuesto: (o) =>
+    `Hola, ${o.customerName}. Tu equipo ${o.deviceLabel} (orden ${o.code}) está a la espera de un repuesto. Te avisamos en cuanto llegue.`,
+  reparacion_en_proceso: (o) =>
+    `Hola, ${o.customerName}. Tu equipo ${o.deviceLabel} (orden ${o.code}) ya está en reparación. Te mantenemos al tanto.`,
+  listo_para_retirar: (o) =>
+    `Hola, ${o.customerName}. Tu equipo ${o.deviceLabel} (orden ${o.code}) ya está listo para retirar. Te esperamos en Zentrofix.`,
+  recordatorio_retiro: (o) =>
+    `Hola, ${o.customerName}. Te recordamos que tu equipo ${o.deviceLabel} (orden ${o.code}) está listo para retirar en Zentrofix.`,
+  confirmacion_pago: (o) =>
+    `Hola, ${o.customerName}. Confirmamos el pago registrado para la orden ${o.code}. ¡Gracias por confiar en Zentrofix!`,
+  comprobante_digital: (o) =>
+    `Hola, ${o.customerName}. Te compartimos el comprobante digital correspondiente a la orden ${o.code}.`,
+  garantia: (o) =>
+    `Hola, ${o.customerName}. Tu equipo ${o.deviceLabel} (orden ${o.code}) cuenta con garantía de Zentrofix. Ante cualquier inconveniente, escribinos por acá.`,
+  consulta_estado: (o) =>
+    `Hola, ${o.customerName}. Somos Zentrofix. Tu equipo ${o.deviceLabel} se encuentra actualmente en estado: ${REPAIR_STATUS_LABELS[o.status]}. Orden: ${o.code}. Ante cualquier consulta, respondé este mensaje.`,
+};
+
+@Injectable({ providedIn: 'root' })
+export class WhatsappService {
+  constructor(
+    private readonly supabase: SupabaseClientService,
+    private readonly auth: AuthService,
+  ) {}
+
+  buildMessage(order: RepairOrder, templateType: CommunicationTemplateType): string {
+    return TEMPLATES[templateType](order);
+  }
+
+  buildLink(order: RepairOrder, message: string): string | null {
+    return buildWhatsAppLink(order.customerPhone ?? '', message);
+  }
+
+  /**
+   * Registra que un mensaje fue preparado (y, si se pudo abrir wa.me, que se abrió WhatsApp).
+   * Nunca afirma que el mensaje fue efectivamente enviado: eso ocurre fuera del sistema.
+   */
+  async logPrepared(
+    order: RepairOrder,
+    templateType: CommunicationTemplateType,
+    messageText: string,
+    opened: boolean,
+  ): Promise<void> {
+    const { error } = await this.supabase.client.from('communications').insert({
+      repair_order_id: order.id,
+      channel: 'whatsapp',
+      template_type: templateType,
+      destination_phone: order.customerPhone ?? '',
+      message_text: messageText,
+      status_at_send: order.status,
+      status: opened ? 'abierto_en_whatsapp' : 'preparado',
+      created_by: this.auth.session()?.user.id ?? null,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+}
