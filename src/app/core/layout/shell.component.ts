@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
@@ -6,9 +6,20 @@ interface NavItem {
   path: string;
   label: string;
   icon: string;
+  adminOnly?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const SIDEBAR_NAV_ITEMS: NavItem[] = [
+  { path: '/panel', label: 'Panel', icon: '📊' },
+  { path: '/ordenes', label: 'Órdenes', icon: '🛠️' },
+  { path: '/clientes', label: 'Clientes', icon: '👤' },
+  { path: '/inventario', label: 'Inventario', icon: '📦' },
+  { path: '/caja', label: 'Caja', icon: '💳', adminOnly: true },
+  { path: '/reportes', label: 'Reportes', icon: '📈', adminOnly: true },
+  { path: '/configuracion/usuarios', label: 'Usuarios', icon: '⚙️', adminOnly: true },
+];
+
+const BOTTOM_NAV_ITEMS: NavItem[] = [
   { path: '/panel', label: 'Panel', icon: '📊' },
   { path: '/ordenes', label: 'Órdenes', icon: '🛠️' },
   { path: '/clientes', label: 'Clientes', icon: '👤' },
@@ -30,7 +41,7 @@ const NAV_ITEMS: NavItem[] = [
         </div>
 
         <nav class="sidebar__nav">
-          @for (item of navItems; track item.path) {
+          @for (item of visibleSidebarItems(); track item.path) {
             <a [routerLink]="item.path" routerLinkActive="is-active" class="sidebar__link">
               <span class="sidebar__icon">{{ item.icon }}</span>
               {{ item.label }}
@@ -63,7 +74,7 @@ const NAV_ITEMS: NavItem[] = [
       </div>
 
       <nav class="bottom-nav">
-        @for (item of navItems; track item.path) {
+        @for (item of bottomNavItems; track item.path) {
           <a [routerLink]="item.path" routerLinkActive="is-active" class="bottom-nav__link">
             <span>{{ item.icon }}</span>
             <small>{{ item.label }}</small>
@@ -268,7 +279,10 @@ const NAV_ITEMS: NavItem[] = [
   ],
 })
 export class ShellComponent {
-  protected readonly navItems = NAV_ITEMS;
+  protected readonly bottomNavItems = BOTTOM_NAV_ITEMS;
+  protected readonly visibleSidebarItems = computed(() =>
+    SIDEBAR_NAV_ITEMS.filter((item) => !item.adminOnly || this.auth.profile()?.role === 'admin'),
+  );
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   protected readonly loggingOut = signal(false);

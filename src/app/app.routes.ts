@@ -1,9 +1,15 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/guards/auth.guard';
+import { adminGuard } from './core/guards/admin.guard';
 import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'panel' },
+  {
+    path: 'seguimiento',
+    loadComponent: () => import('./features/tracking/tracking.component').then((m) => m.TrackingComponent),
+    title: 'Seguimiento de tu equipo — Zentrofix',
+  },
   {
     path: 'auth',
     canActivate: [guestGuard],
@@ -104,6 +110,62 @@ export const routes: Routes = [
             (m) => m.OrderDetailComponent,
           ),
         title: 'Orden — Zentrofix',
+      },
+      {
+        path: 'ordenes/:orderId/presupuestos/nuevo',
+        loadComponent: () => import('./features/quotes/quote-form.component').then((m) => m.QuoteFormComponent),
+        canDeactivate: [unsavedChangesGuard],
+        title: 'Nuevo presupuesto — Zentrofix',
+      },
+      {
+        path: 'ordenes/:orderId/presupuestos/:quoteId/editar',
+        loadComponent: () => import('./features/quotes/quote-form.component').then((m) => m.QuoteFormComponent),
+        canDeactivate: [unsavedChangesGuard],
+        title: 'Editar presupuesto — Zentrofix',
+      },
+      {
+        path: 'inventario',
+        loadComponent: () =>
+          import('./features/inventory/inventory-list.component').then((m) => m.InventoryListComponent),
+        title: 'Inventario — Zentrofix',
+      },
+      {
+        path: 'inventario/nuevo',
+        loadComponent: () =>
+          import('./features/inventory/inventory-form.component').then((m) => m.InventoryFormComponent),
+        canDeactivate: [unsavedChangesGuard],
+        title: 'Nuevo ítem — Zentrofix',
+      },
+      {
+        path: 'inventario/:id',
+        loadComponent: () =>
+          import('./features/inventory/inventory-detail.component').then((m) => m.InventoryDetailComponent),
+        title: 'Ítem de inventario — Zentrofix',
+      },
+      {
+        path: 'inventario/:id/editar',
+        loadComponent: () =>
+          import('./features/inventory/inventory-form.component').then((m) => m.InventoryFormComponent),
+        canDeactivate: [unsavedChangesGuard],
+        title: 'Editar ítem — Zentrofix',
+      },
+      {
+        path: 'caja',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./features/cash/cash.component').then((m) => m.CashComponent),
+        title: 'Caja — Zentrofix',
+      },
+      {
+        path: 'reportes',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent),
+        title: 'Reportes — Zentrofix',
+      },
+      {
+        path: 'configuracion/usuarios',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./features/settings/users.component').then((m) => m.UsersComponent),
+        title: 'Usuarios — Zentrofix',
       },
     ],
   },

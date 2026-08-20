@@ -60,6 +60,7 @@ import { firstErrorMessage } from '../../../shared/utils/form-errors.util';
         </form>
 
         <a routerLink="/auth/recuperar-contrasena" class="auth-forgot">Olvidé mi contraseña</a>
+        <a routerLink="/seguimiento" class="auth-tracking">¿Sos cliente? Consultá el estado de tu equipo</a>
       </div>
     </div>
   `,
@@ -121,6 +122,15 @@ import { firstErrorMessage } from '../../../shared/utils/form-errors.util';
         text-align: center;
         margin-top: 1.25rem;
         font-size: 0.85rem;
+        text-decoration: none;
+      }
+
+      .auth-tracking {
+        display: block;
+        text-align: center;
+        margin-top: 0.65rem;
+        font-size: 0.8rem;
+        color: var(--zf-text-muted);
         text-decoration: none;
       }
     `,

@@ -3,3 +3,7 @@ export * from './customer.model';
 export * from './device.model';
 export * from './repair-order.model';
 export * from './communication.model';
+export * from './quote.model';
+export * from './inventory.model';
+export * from './payment.model';
+export * from './attachment.model';

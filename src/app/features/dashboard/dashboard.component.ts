@@ -210,9 +210,10 @@ export class DashboardComponent implements OnInit {
       label: 'Ingresos cobrados',
       value: () => this.formatCurrency(this.indicators()?.incomeCollected ?? 0),
       tone: 'green',
+      routerLink: '/caja',
     },
     { label: 'Garantías activas', value: () => this.indicators()?.activeWarranties ?? 0, tone: 'blue' },
-    { label: 'Stock crítico', value: () => this.indicators()?.criticalStock ?? 0, tone: 'danger' },
+    { label: 'Stock crítico', value: () => this.indicators()?.criticalStock ?? 0, tone: 'danger', routerLink: '/inventario' },
   ];
 
   async ngOnInit(): Promise<void> {
