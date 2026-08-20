@@ -64,6 +64,9 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <a [routerLink]="['/ordenes', order()!.id, 'reingreso']" class="zf-btn zf-btn--ghost zf-btn--sm">
               + Crear reingreso
             </a>
+            <button type="button" class="zf-btn zf-btn--whatsapp zf-btn--sm" (click)="openWhatsAppModal()">
+              Enviar por WhatsApp
+            </button>
           </div>
         </div>
 
@@ -101,11 +104,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             </section>
 
             <section class="zf-card">
-              <h2>Diagnóstico y presupuesto</h2>
-              <p class="zf-hint zf-hint--block" style="margin-top: -0.5rem; margin-bottom: 1rem;">
-                Esta sección reúne lo que corresponde compartir con el cliente: diagnóstico, trabajo, precio y
-                presupuestos. Los costos internos se cargan aparte, más abajo.
-              </p>
+              <h2>Diagnóstico</h2>
               <form [formGroup]="diagnosisForm" (ngSubmit)="saveDiagnosis()" novalidate>
                 <div class="zf-field">
                   <label for="technicalDiagnosis">Diagnóstico técnico</label>
@@ -116,6 +115,18 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                   <textarea id="recommendedWork" class="zf-textarea" formControlName="recommendedWork"></textarea>
                 </div>
 
+                <button type="submit" class="zf-btn zf-btn--primary" [disabled]="savingDetails()">
+                  @if (savingDetails()) {
+                    <span class="zf-spinner"></span>
+                  }
+                  Guardar diagnóstico
+                </button>
+              </form>
+            </section>
+
+            <section class="zf-card">
+              <h2>Presupuesto</h2>
+              <form [formGroup]="pricingForm" (ngSubmit)="savePricing()" novalidate>
                 <div class="calc-box">
                   <h3>Calculadora de presupuesto (opcional)</h3>
                   <p class="zf-hint">
@@ -206,11 +217,11 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                   <span>Total: <strong>{{ order()!.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
                 </div>
 
-                <button type="submit" class="zf-btn zf-btn--primary" [disabled]="savingDetails()">
-                  @if (savingDetails()) {
+                <button type="submit" class="zf-btn zf-btn--primary" [disabled]="savingPricing()">
+                  @if (savingPricing()) {
                     <span class="zf-spinner"></span>
                   }
-                  Guardar diagnóstico y presupuesto
+                  Guardar presupuesto
                 </button>
               </form>
 
@@ -257,17 +268,6 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                           >
                             Editar
                           </a>
-                          <button
-                            type="button"
-                            class="zf-btn zf-btn--whatsapp zf-btn--sm"
-                            [disabled]="quoteActionBusy() === q.id"
-                            (click)="sendQuoteWhatsApp(q)"
-                          >
-                            @if (quoteActionBusy() === q.id) {
-                              <span class="zf-spinner"></span>
-                            }
-                            {{ q.sentAt ? 'Reenviar por WhatsApp' : 'Enviar por WhatsApp' }}
-                          </button>
                           @if (q.approvalStatus === 'pendiente') {
                             <button
                               type="button"
@@ -326,41 +326,6 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                   </div>
                 }
               </div>
-            </section>
-
-            <section class="zf-card">
-              <h2>Costos internos</h2>
-              <p class="zf-hint zf-hint--block" style="margin-top: -0.5rem; margin-bottom: 1rem;">
-                Uso interno: nunca se muestran al cliente ni se incluyen en el comprobante ni en los mensajes de
-                WhatsApp.
-              </p>
-              <form [formGroup]="internalForm" (ngSubmit)="saveInternalCosts()" novalidate>
-                <div class="zf-grid-2">
-                  <div class="zf-field">
-                    <label for="partsCost">Costo de repuestos</label>
-                    <input id="partsCost" type="number" min="0" step="0.01" class="zf-input" formControlName="partsCost" />
-                  </div>
-                  <div class="zf-field">
-                    <label for="laborCost">Mano de obra</label>
-                    <input id="laborCost" type="number" min="0" step="0.01" class="zf-input" formControlName="laborCost" />
-                  </div>
-                </div>
-                <div class="zf-field">
-                  <label for="internalCost">Costo interno adicional</label>
-                  <input id="internalCost" type="number" min="0" step="0.01" class="zf-input" formControlName="internalCost" />
-                </div>
-                <div class="zf-field">
-                  <label for="internalNotes">Observaciones internas</label>
-                  <textarea id="internalNotes" class="zf-textarea" formControlName="internalNotes"></textarea>
-                </div>
-
-                <button type="submit" class="zf-btn zf-btn--dark" [disabled]="savingInternalCosts()">
-                  @if (savingInternalCosts()) {
-                    <span class="zf-spinner"></span>
-                  }
-                  Guardar costos internos
-                </button>
-              </form>
             </section>
 
             <section class="zf-card">
@@ -486,17 +451,6 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     }
                     Descargar PDF
                   </button>
-                  <button
-                    type="button"
-                    class="zf-btn zf-btn--whatsapp zf-btn--sm"
-                    [disabled]="sendingReceipt()"
-                    (click)="sendReceiptWhatsApp()"
-                  >
-                    @if (sendingReceipt()) {
-                      <span class="zf-spinner"></span>
-                    }
-                    Enviar por WhatsApp
-                  </button>
                 </div>
               </div>
 
@@ -581,53 +535,154 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 </div>
               }
             </section>
-
-            <section class="zf-card">
-              <h2>WhatsApp</h2>
-              <div class="zf-field">
-                <label for="template">Plantilla</label>
-                <select
-                  id="template"
-                  class="zf-select"
-                  [(ngModel)]="selectedTemplate"
-                  [ngModelOptions]="{ standalone: true }"
-                  (ngModelChange)="regenerateMessage()"
-                >
-                  @for (t of templateTypes; track t) {
-                    <option [value]="t">{{ templateLabels[t] }}</option>
-                  }
-                </select>
-              </div>
-              <div class="zf-field">
-                <label for="messagePreview">Mensaje (podés editarlo antes de abrir WhatsApp)</label>
-                <textarea
-                  id="messagePreview"
-                  class="zf-textarea"
-                  rows="5"
-                  [(ngModel)]="messageText"
-                  [ngModelOptions]="{ standalone: true }"
-                ></textarea>
-              </div>
-              @if (!whatsappLink()) {
-                <p class="zf-error">El teléfono del cliente no es válido para WhatsApp. Revisá el dato en la ficha del cliente.</p>
-              } @else {
-                <a
-                  [href]="whatsappLink()!"
-                  target="_blank"
-                  rel="noopener"
-                  class="zf-btn zf-btn--whatsapp"
-                  (click)="onWhatsAppOpen()"
-                >
-                  Abrir WhatsApp
-                </a>
-              }
-              <p class="zf-hint zf-hint--block">
-                El sistema solo registra que el mensaje fue preparado y que se abrió WhatsApp: el envío real lo hacés vos
-                desde el WhatsApp oficial de Zentrofix.
-              </p>
-            </section>
           </div>
         </div>
+
+        @if (whatsAppModalOpen()) {
+          <div class="modal-backdrop" (click)="closeWhatsAppModal()">
+            <div class="modal-card" (click)="$event.stopPropagation()">
+              <div class="modal-header">
+                <h2>Enviar por WhatsApp</h2>
+                <button type="button" class="modal-close" (click)="closeWhatsAppModal()">✕</button>
+              </div>
+
+              @if (whatsAppModalStep() === 'categoria') {
+                <p class="zf-hint zf-hint--block" style="margin-top: 0;">¿Qué querés enviarle a {{ order()!.customerName }}?</p>
+                <div class="modal-options">
+                  <button type="button" class="modal-option" (click)="selectWhatsAppCategory('plantilla')">
+                    <span class="modal-option__icon">💬</span>
+                    <span>
+                      <strong>Plantilla general</strong>
+                      <small>Confirmación, diagnóstico, recordatorio, estado, etc.</small>
+                    </span>
+                  </button>
+                  <button type="button" class="modal-option" (click)="selectWhatsAppCategory('presupuesto')">
+                    <span class="modal-option__icon">💰</span>
+                    <span>
+                      <strong>Presupuesto</strong>
+                      <small>Envía el detalle de un presupuesto formal ya cargado.</small>
+                    </span>
+                  </button>
+                  <button type="button" class="modal-option" (click)="selectWhatsAppCategory('comprobante')">
+                    <span class="modal-option__icon">🧾</span>
+                    <span>
+                      <strong>Comprobante digital</strong>
+                      <small>Genera el PDF y comparte el enlace de descarga.</small>
+                    </span>
+                  </button>
+                </div>
+              }
+
+              @if (whatsAppModalStep() === 'plantilla') {
+                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('categoria')">← Volver</button>
+                <div class="zf-field">
+                  <label for="modalTemplate">Plantilla</label>
+                  <select
+                    id="modalTemplate"
+                    class="zf-select"
+                    [(ngModel)]="selectedTemplate"
+                    [ngModelOptions]="{ standalone: true }"
+                    (ngModelChange)="regenerateMessage()"
+                  >
+                    @for (t of templateTypes; track t) {
+                      <option [value]="t">{{ templateLabels[t] }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="zf-field">
+                  <label for="modalMessagePreview">Mensaje (podés editarlo antes de abrir WhatsApp)</label>
+                  <textarea
+                    id="modalMessagePreview"
+                    class="zf-textarea"
+                    rows="5"
+                    [(ngModel)]="messageText"
+                    [ngModelOptions]="{ standalone: true }"
+                  ></textarea>
+                </div>
+                @if (!whatsappLink()) {
+                  <p class="zf-error">El teléfono del cliente no es válido para WhatsApp. Revisá el dato en la ficha del cliente.</p>
+                } @else {
+                  <a
+                    [href]="whatsappLink()!"
+                    target="_blank"
+                    rel="noopener"
+                    class="zf-btn zf-btn--whatsapp modal-submit"
+                    (click)="onWhatsAppOpenFromModal()"
+                  >
+                    Abrir WhatsApp
+                  </a>
+                }
+              }
+
+              @if (whatsAppModalStep() === 'presupuesto') {
+                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('categoria')">← Volver</button>
+                @if (quotes().length === 0) {
+                  <p class="zf-hint">Todavía no hay presupuestos formales cargados para esta orden.</p>
+                  <a
+                    [routerLink]="['/ordenes', order()!.id, 'presupuestos', 'nuevo']"
+                    class="zf-btn zf-btn--ghost modal-submit"
+                    (click)="closeWhatsAppModal()"
+                  >
+                    Crear presupuesto
+                  </a>
+                } @else {
+                  <div class="modal-quote-list">
+                    @for (q of quotes(); track q.id) {
+                      <label class="modal-quote-option">
+                        <input
+                          type="radio"
+                          name="whatsAppQuote"
+                          [value]="q.id"
+                          [(ngModel)]="whatsAppSelectedQuoteId"
+                          [ngModelOptions]="{ standalone: true }"
+                        />
+                        <span>
+                          <strong>{{ q.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong>
+                          — {{ quoteStatusLabels[q.approvalStatus] }} · {{ q.createdAt | date: 'dd/MM/yyyy' }}
+                        </span>
+                      </label>
+                    }
+                  </div>
+                  <button
+                    type="button"
+                    class="zf-btn zf-btn--whatsapp modal-submit"
+                    [disabled]="!whatsAppSelectedQuoteId || quoteActionBusy() !== null"
+                    (click)="confirmSendQuoteFromModal()"
+                  >
+                    @if (quoteActionBusy() !== null) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Enviar presupuesto
+                  </button>
+                }
+              }
+
+              @if (whatsAppModalStep() === 'comprobante') {
+                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('categoria')">← Volver</button>
+                <p class="zf-hint zf-hint--block" style="margin-top: 0;">
+                  Se va a generar el comprobante en PDF (o actualizar el existente), y compartir el enlace de descarga
+                  por WhatsApp.
+                </p>
+                <button
+                  type="button"
+                  class="zf-btn zf-btn--whatsapp modal-submit"
+                  [disabled]="sendingReceipt()"
+                  (click)="confirmSendReceiptFromModal()"
+                >
+                  @if (sendingReceipt()) {
+                    <span class="zf-spinner"></span>
+                  }
+                  Generar y enviar comprobante
+                </button>
+              }
+
+              <p class="zf-hint modal-footnote">
+                El sistema solo registra que el mensaje fue preparado y que se abrió WhatsApp: el envío real lo hacés
+                vos desde el WhatsApp oficial de Zentrofix.
+              </p>
+            </div>
+          </div>
+        }
       }
     </div>
   `,
@@ -1050,6 +1105,146 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         color: var(--zf-text);
         word-break: break-all;
       }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(4, 5, 8, 0.72);
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        z-index: 100;
+        padding: 0;
+      }
+
+      @media (min-width: 640px) {
+        .modal-backdrop {
+          align-items: center;
+          padding: 1.5rem;
+        }
+      }
+
+      .modal-card {
+        background: var(--zf-surface);
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius) var(--zf-radius) 0 0;
+        padding: 1.5rem;
+        width: 100%;
+        max-width: 480px;
+        max-height: 88vh;
+        overflow-y: auto;
+      }
+
+      @media (min-width: 640px) {
+        .modal-card {
+          border-radius: var(--zf-radius);
+        }
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .modal-header h2 {
+        margin: 0;
+        font-size: 1.05rem;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        color: var(--zf-text-muted);
+        font-size: 1.2rem;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0.25rem;
+      }
+
+      .modal-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .modal-option {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-align: left;
+        background: var(--zf-surface-2);
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius-sm);
+        padding: 0.85rem;
+        cursor: pointer;
+        color: var(--zf-text);
+      }
+
+      .modal-option:hover {
+        border-color: var(--zf-blue);
+      }
+
+      .modal-option__icon {
+        font-size: 1.4rem;
+      }
+
+      .modal-option strong {
+        display: block;
+        font-size: 0.92rem;
+      }
+
+      .modal-option small {
+        display: block;
+        color: var(--zf-text-muted);
+        font-size: 0.78rem;
+        margin-top: 0.15rem;
+      }
+
+      .modal-back {
+        background: none;
+        border: none;
+        color: var(--zf-blue);
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        padding: 0;
+        margin-bottom: 1rem;
+      }
+
+      .modal-submit {
+        width: 100%;
+        margin-top: 0.5rem;
+      }
+
+      .modal-quote-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .modal-quote-option {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        background: var(--zf-surface-2);
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius-sm);
+        padding: 0.7rem 0.85rem;
+        font-size: 0.85rem;
+        color: var(--zf-text-secondary);
+        cursor: pointer;
+      }
+
+      .modal-quote-option strong {
+        color: var(--zf-text);
+      }
+
+      .modal-footnote {
+        margin-top: 1.25rem;
+      }
     `,
   ],
 })
@@ -1123,12 +1318,18 @@ export class OrderDetailComponent implements OnInit {
   protected messageText = '';
   private orderId = '';
 
-  protected readonly savingInternalCosts = signal(false);
+  protected readonly whatsAppModalOpen = signal(false);
+  protected readonly whatsAppModalStep = signal<'categoria' | 'plantilla' | 'presupuesto' | 'comprobante'>('categoria');
+  protected whatsAppSelectedQuoteId: string | null = null;
 
-  /** Diagnóstico y presupuesto: lo que tiene sentido compartir con el cliente. */
+  protected readonly savingPricing = signal(false);
+
   protected readonly diagnosisForm = this.fb.nonNullable.group({
     technicalDiagnosis: [''],
     recommendedWork: [''],
+  });
+
+  protected readonly pricingForm = this.fb.nonNullable.group({
     customerPrice: [0, [positiveAmountValidator()]],
     discount: [0, [positiveAmountValidator()]],
   });
@@ -1237,14 +1438,6 @@ export class OrderDetailComponent implements OnInit {
     }
   }
 
-  /** Costos internos: nunca se comparten con el cliente ni se incluyen en el comprobante. */
-  protected readonly internalForm = this.fb.nonNullable.group({
-    partsCost: [0, [positiveAmountValidator()]],
-    laborCost: [0, [positiveAmountValidator()]],
-    internalCost: [0, [positiveAmountValidator()]],
-    internalNotes: [''],
-  });
-
   async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
@@ -1278,14 +1471,10 @@ export class OrderDetailComponent implements OnInit {
         this.diagnosisForm.patchValue({
           technicalDiagnosis: order.technicalDiagnosis ?? '',
           recommendedWork: order.recommendedWork ?? '',
+        });
+        this.pricingForm.patchValue({
           customerPrice: order.customerPrice,
           discount: order.discount,
-        });
-        this.internalForm.patchValue({
-          partsCost: order.partsCost,
-          laborCost: order.laborCost,
-          internalCost: order.internalCost,
-          internalNotes: order.internalNotes ?? '',
         });
         this.regenerateMessage();
 
@@ -1332,71 +1521,109 @@ export class OrderDetailComponent implements OnInit {
     }
   }
 
+  openWhatsAppModal(): void {
+    this.whatsAppModalStep.set('categoria');
+    this.whatsAppSelectedQuoteId = null;
+    this.whatsAppModalOpen.set(true);
+  }
+
+  closeWhatsAppModal(): void {
+    this.whatsAppModalOpen.set(false);
+  }
+
+  selectWhatsAppCategory(category: 'plantilla' | 'presupuesto' | 'comprobante'): void {
+    if (category === 'plantilla') {
+      this.regenerateMessage();
+    }
+    if (category === 'presupuesto' && this.quotes().length === 1) {
+      this.whatsAppSelectedQuoteId = this.quotes()[0].id;
+    }
+    this.whatsAppModalStep.set(category);
+  }
+
+  async onWhatsAppOpenFromModal(): Promise<void> {
+    await this.onWhatsAppOpen();
+    this.closeWhatsAppModal();
+  }
+
+  async confirmSendQuoteFromModal(): Promise<void> {
+    const quote = this.quotes().find((q) => q.id === this.whatsAppSelectedQuoteId);
+    if (!quote) {
+      return;
+    }
+    await this.sendQuoteWhatsApp(quote);
+    this.closeWhatsAppModal();
+  }
+
+  async confirmSendReceiptFromModal(): Promise<void> {
+    await this.sendReceiptWhatsApp();
+    this.closeWhatsAppModal();
+  }
+
   async saveDiagnosis(): Promise<void> {
-    if (this.savingDetails() || this.diagnosisForm.invalid || !this.order()) {
+    const order = this.order();
+    if (this.savingDetails() || this.diagnosisForm.invalid || !order) {
       this.diagnosisForm.markAllAsTouched();
       return;
     }
     this.savingDetails.set(true);
     try {
       const value = this.diagnosisForm.getRawValue();
-      const internal = this.internalForm.getRawValue();
       const updated = await this.ordersService.updateDetails(this.orderId, {
-        reportedFault: this.order()!.reportedFault,
-        receptionNotes: this.order()!.receptionNotes,
+        reportedFault: order.reportedFault,
+        receptionNotes: order.receptionNotes,
         technicalDiagnosis: value.technicalDiagnosis || null,
         recommendedWork: value.recommendedWork || null,
-        priority: this.order()!.priority,
-        estimatedCompletionDate: this.order()!.estimatedCompletionDate,
-        partsCost: Number(internal.partsCost) || 0,
-        laborCost: Number(internal.laborCost) || 0,
-        internalCost: Number(internal.internalCost) || 0,
-        customerPrice: Number(value.customerPrice) || 0,
-        discount: Number(value.discount) || 0,
-        deposit: this.order()!.deposit,
-        internalNotes: internal.internalNotes || null,
+        priority: order.priority,
+        estimatedCompletionDate: order.estimatedCompletionDate,
+        partsCost: order.partsCost,
+        laborCost: order.laborCost,
+        internalCost: order.internalCost,
+        customerPrice: order.customerPrice,
+        discount: order.discount,
+        deposit: order.deposit,
+        internalNotes: order.internalNotes,
       });
       this.order.set(updated);
-      this.paymentStatus.set(this.ordersService.paymentStatusOf(updated));
-      this.toast.success('Diagnóstico y presupuesto guardados correctamente.');
+      this.toast.success('Diagnóstico guardado correctamente.');
     } catch {
-      this.toast.error('No se pudieron guardar los cambios.');
+      this.toast.error('No se pudo guardar el diagnóstico.');
     } finally {
       this.savingDetails.set(false);
     }
   }
 
-  async saveInternalCosts(): Promise<void> {
-    if (this.savingInternalCosts() || this.internalForm.invalid || !this.order()) {
-      this.internalForm.markAllAsTouched();
+  async savePricing(): Promise<void> {
+    const order = this.order();
+    if (this.savingPricing() || this.pricingForm.invalid || !order) {
+      this.pricingForm.markAllAsTouched();
       return;
     }
-    this.savingInternalCosts.set(true);
+    this.savingPricing.set(true);
     try {
-      const internal = this.internalForm.getRawValue();
-      const diagnosis = this.diagnosisForm.getRawValue();
+      const value = this.pricingForm.getRawValue();
       const updated = await this.ordersService.updateDetails(this.orderId, {
-        reportedFault: this.order()!.reportedFault,
-        receptionNotes: this.order()!.receptionNotes,
-        technicalDiagnosis: diagnosis.technicalDiagnosis || null,
-        recommendedWork: diagnosis.recommendedWork || null,
-        priority: this.order()!.priority,
-        estimatedCompletionDate: this.order()!.estimatedCompletionDate,
-        partsCost: Number(internal.partsCost) || 0,
-        laborCost: Number(internal.laborCost) || 0,
-        internalCost: Number(internal.internalCost) || 0,
-        customerPrice: Number(diagnosis.customerPrice) || 0,
-        discount: Number(diagnosis.discount) || 0,
-        deposit: this.order()!.deposit,
-        internalNotes: internal.internalNotes || null,
+        reportedFault: order.reportedFault,
+        receptionNotes: order.receptionNotes,
+        technicalDiagnosis: order.technicalDiagnosis,
+        recommendedWork: order.recommendedWork,
+        priority: order.priority,
+        estimatedCompletionDate: order.estimatedCompletionDate,
+        partsCost: order.partsCost,
+        laborCost: order.laborCost,
+        internalCost: order.internalCost,
+        customerPrice: Number(value.customerPrice) || 0,
+        discount: Number(value.discount) || 0,
+        deposit: order.deposit,
+        internalNotes: order.internalNotes,
       });
       this.order.set(updated);
       this.paymentStatus.set(this.ordersService.paymentStatusOf(updated));
-      this.toast.success('Costos internos guardados correctamente.');
+      this.toast.success('Presupuesto guardado correctamente.');
     } catch {
-      this.toast.error('No se pudieron guardar los costos internos.');
+      this.toast.error('No se pudo guardar el presupuesto.');
     } finally {
-      this.savingInternalCosts.set(false);
+      this.savingPricing.set(false);
     }
   }
 
