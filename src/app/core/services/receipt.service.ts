@@ -13,6 +13,11 @@ const MARGIN = 16;
 const PAGE_WIDTH = 210;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
+const TERMS_TEXT =
+  'La reparación realizada cubre exclusivamente la falla diagnosticada y el trabajo detallado en este ' +
+  'comprobante. La garantía no cubre daños posteriores por golpes, caídas, rayaduras o impactos de ' +
+  'cualquier índole, ni daños por humedad o inmersión en cualquier tipo de líquido.';
+
 @Injectable({ providedIn: 'root' })
 export class ReceiptService {
   /** Genera el comprobante digital de una orden. Nunca incluye costo interno ni observaciones internas. */
@@ -39,6 +44,7 @@ export class ReceiptService {
       y = this.drawWarrantyBox(doc, warranty, y);
     }
 
+    this.drawTermsBox(doc, y);
     this.drawFooter(doc, order);
 
     return doc.output('blob');
@@ -143,36 +149,35 @@ export class ReceiptService {
   }
 
   private drawCostTable(doc: jsPDF, order: RepairOrder, startY: number): number {
-    const rows: (string | { content: string; styles?: Record<string, unknown> })[][] = [
-      ['Repuestos', formatCurrency(order.partsCost)],
-      ['Mano de obra', formatCurrency(order.laborCost)],
-      ['Descuento', `- ${formatCurrency(order.discount)}`],
-      [{ content: 'Total', styles: { fontStyle: 'bold' } }, { content: formatCurrency(order.total), styles: { fontStyle: 'bold' } }],
-      ['Pagado a cuenta', formatCurrency(order.deposit)],
-      [
+    type Cell = string | { content: string; styles?: Record<string, unknown> };
+    const rows: Cell[][] = [];
+
+    if (order.discount > 0) {
+      rows.push(['Descuento aplicado', `- ${formatCurrency(order.discount)}`]);
+    }
+    rows.push([
+      { content: 'Total', styles: { fontStyle: 'bold' } },
+      { content: formatCurrency(order.total), styles: { fontStyle: 'bold' } },
+    ]);
+    if (order.deposit > 0) {
+      rows.push(['Pagado a cuenta', formatCurrency(order.deposit)]);
+    }
+    if (order.balanceDue > 0) {
+      rows.push([
         { content: 'Saldo pendiente', styles: { fontStyle: 'bold' } },
-        {
-          content: formatCurrency(order.balanceDue),
-          styles: { fontStyle: 'bold', textColor: order.balanceDue > 0 ? [214, 69, 69] : [22, 128, 62] },
-        },
-      ],
-    ];
+        { content: formatCurrency(order.balanceDue), styles: { fontStyle: 'bold', textColor: [214, 69, 69] } },
+      ]);
+    }
 
     autoTable(doc, {
       startY,
       margin: { left: MARGIN, right: MARGIN },
-      head: [['Detalle de costos', 'Importe']],
+      head: [['Detalle', 'Importe']],
       body: rows as never,
       theme: 'plain',
-      styles: { fontSize: 9.5, cellPadding: { top: 2, bottom: 2, left: 0, right: 0 } },
+      styles: { fontSize: 10, cellPadding: { top: 2.5, bottom: 2.5, left: 0, right: 0 } },
       headStyles: { fillColor: BLACK, textColor: 255, fontStyle: 'bold', cellPadding: 2.5 },
       columnStyles: { 1: { halign: 'right' } },
-      didParseCell: (data) => {
-        if (data.row.index === rows.length - 4 || data.row.index === rows.length - 1) {
-          data.cell.styles.lineWidth = { top: 0.2, bottom: 0, left: 0, right: 0 };
-          data.cell.styles.lineColor = BORDER;
-        }
-      },
     });
 
     return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
@@ -221,6 +226,29 @@ export class ReceiptService {
       MARGIN + 4,
       startY + boxHeight - 3,
     );
+
+    return startY + boxHeight + 8;
+  }
+
+  private drawTermsBox(doc: jsPDF, startY: number): number {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const lines = doc.splitTextToSize(TERMS_TEXT, CONTENT_WIDTH - 8);
+    const boxHeight = lines.length * 3.6 + 11;
+
+    doc.setFillColor(248, 249, 250);
+    doc.setDrawColor(...BORDER);
+    doc.roundedRect(MARGIN, startY, CONTENT_WIDTH, boxHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...TEXT);
+    doc.text('TÉRMINOS Y CONDICIONES', MARGIN + 4, startY + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.text(lines, MARGIN + 4, startY + 10.5);
 
     return startY + boxHeight + 8;
   }
