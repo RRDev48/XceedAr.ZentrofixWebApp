@@ -3,6 +3,7 @@
   "outputDirectory": "dist/zentrofix/browser",
   "framework": null,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/s/:code", "destination": "/api/s/:code" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

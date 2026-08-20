@@ -9,6 +9,7 @@ import { PaymentsService } from '../../../core/services/payments.service';
 import { WarrantiesService } from '../../../core/services/warranties.service';
 import { AttachmentsService } from '../../../core/services/attachments.service';
 import { ReceiptService } from '../../../core/services/receipt.service';
+import { ShortLinksService } from '../../../core/services/short-links.service';
 import {
   Attachment,
   AttachmentCategory,
@@ -819,6 +820,7 @@ export class OrderDetailComponent implements OnInit {
   private readonly warrantiesService = inject(WarrantiesService);
   private readonly attachmentsService = inject(AttachmentsService);
   private readonly receiptService = inject(ReceiptService);
+  private readonly shortLinksService = inject(ShortLinksService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
 
@@ -1153,8 +1155,15 @@ export class OrderDetailComponent implements OnInit {
       const attachment = await this.attachmentsService.uploadBlob(this.orderId, blob, fileName, 'comprobante');
       this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
 
-      const signedUrl = await this.attachmentsService.getSignedUrl(attachment.storagePath, 60 * 60 * 24 * 7);
-      const message = this.whatsappService.buildReceiptMessage(order, signedUrl);
+      const expiresInSeconds = 60 * 60 * 24 * 7;
+      const signedUrl = await this.attachmentsService.getSignedUrl(attachment.storagePath, expiresInSeconds);
+      const shortUrl = await this.shortLinksService.create(
+        signedUrl,
+        `Comprobante ${order.code}`,
+        this.orderId,
+        expiresInSeconds,
+      );
+      const message = this.whatsappService.buildReceiptMessage(order, shortUrl);
       const link = this.whatsappService.buildLink(order, message);
       if (!link) {
         this.toast.error('El teléfono del cliente no es válido para WhatsApp.');
