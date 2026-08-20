@@ -27,6 +27,7 @@ Alternativamente, en CI/CD (por ejemplo Vercel) podés definir las variables de 
    4. `0004_inventory_payments_cash.sql` — movimientos de stock automáticos, pagos que actualizan la orden y generan su ingreso en caja.
    5. `0005_storage_attachments.sql` — crea el bucket privado `attachments` (fotos, comprobantes, garantías) y sus políticas.
    6. `0006_roles_and_tracking.sql` — restringe pagos/caja/configuración a rol Administrador, y crea la función pública `public_track_order` para el portal de seguimiento de clientes.
+   7. `0007_reingresos.sql` — agrega `related_order_id` para vincular una orden de reingreso con la orden original.
 3. Verificá en **Table Editor** que las tablas se crearon y que **RLS está activado** (candado verde) en cada una, y en **Storage** que exista el bucket `attachments` (privado).
 4. Recomendado (defensa adicional): en **Authentication → Sign In / Providers → Email**, desactivá "Allow new users to sign up". Los usuarios de Zentrofix se crean siempre desde **Authentication → Users → Add user**, nunca por autoregistro.
 
@@ -123,9 +124,11 @@ supabase/
 
 Toda la información persiste en PostgreSQL (Supabase), protegida por Row Level Security; nada crítico depende de `localStorage`.
 
+**PWA y reingresos**
+- La app es instalable (PWA): Service Worker con cacheo del shell y los assets, ícono de marca en varios tamaños, funciona offline para las pantallas ya visitadas. Se instala desde el navegador ("Agregar a la pantalla de inicio" / ícono de instalar en la barra de direcciones).
+- **Reingresos**: desde el detalle de cualquier orden, el botón "+ Crear reingreso" abre una orden nueva con el mismo cliente y equipo precargados, vinculada automáticamente a la orden original (`related_order_id`). El detalle de cada orden muestra el enlace a la orden original y/o a sus reingresos.
+
 ## 9. Qué queda pendiente
 
-- **PWA instalable**: el `manifest.webmanifest` ya está preparado; falta agregar el Service Worker (`ng add @angular/pwa`) para que funcione offline/sea instalable.
 - **WhatsApp Business API real**: desplegar la Edge Function `send-whatsapp` y cargar las credenciales de Meta cuando Zentrofix las tenga.
-- **Reingresos**: hoy se gestionan creando una nueva orden para el mismo cliente/equipo (el flujo de alta ya permite reutilizarlos) y usando el estado "Garantía o reingreso"; no hay todavía un botón dedicado que enlace automáticamente la orden nueva con la original.
 - Diferenciación más fina de permisos entre Recepción y Técnico (hoy comparten el mismo nivel de acceso operativo, distinto del Administrador).

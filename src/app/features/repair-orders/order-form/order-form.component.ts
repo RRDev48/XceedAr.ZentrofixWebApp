@@ -1,11 +1,20 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CustomersService } from '../../../core/services/customers.service';
 import { DevicesService } from '../../../core/services/devices.service';
 import { RepairOrdersService } from '../../../core/services/repair-orders.service';
-import { Customer, CustomerMatch, Device, DeviceType, DEVICE_TYPE_LABELS, RepairPriority, REPAIR_PRIORITY_LABELS } from '../../../models';
+import {
+  Customer,
+  CustomerMatch,
+  Device,
+  DeviceType,
+  DEVICE_TYPE_LABELS,
+  RepairOrder,
+  RepairPriority,
+  REPAIR_PRIORITY_LABELS,
+} from '../../../models';
 import { argentinePhoneValidator, dniValidator, imeiOrSerialValidator } from '../../../shared/validators/custom-validators';
 import { firstErrorMessage } from '../../../shared/utils/form-errors.util';
 import { ToastService } from '../../../shared/components/toast/toast.service';
@@ -20,8 +29,15 @@ type WizardStep = 'cliente' | 'equipo' | 'orden';
   template: `
     <div class="zf-page zf-page--narrow">
       <div class="zf-page-header">
-        <h1>Nueva orden de reparación</h1>
+        <h1>{{ originalOrder() ? 'Nuevo reingreso' : 'Nueva orden de reparación' }}</h1>
       </div>
+
+      @if (originalOrder()) {
+        <div class="reingreso-banner">
+          Reingreso de la orden <strong>{{ originalOrder()!.code }}</strong> — el cliente y el equipo ya están
+          precargados.
+        </div>
+      }
 
       <div class="steps">
         <span class="step" [class.is-active]="step() === 'cliente'" [class.is-done]="!!selectedCustomer()">1. Cliente</span>
@@ -298,6 +314,16 @@ type WizardStep = 'cliente' | 'equipo' | 'orden';
         max-width: 720px;
       }
 
+      .reingreso-banner {
+        background: var(--zf-purple-soft);
+        border: 1px solid rgba(156, 44, 255, 0.35);
+        color: var(--zf-text-secondary);
+        border-radius: var(--zf-radius-sm);
+        padding: 0.75rem 0.9rem;
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+      }
+
       .steps {
         display: flex;
         gap: 0.5rem;
@@ -395,12 +421,13 @@ type WizardStep = 'cliente' | 'equipo' | 'orden';
     `,
   ],
 })
-export class OrderFormComponent implements CanComponentDeactivate {
+export class OrderFormComponent implements OnInit, CanComponentDeactivate {
   private readonly fb = inject(FormBuilder);
   private readonly customersService = inject(CustomersService);
   private readonly devicesService = inject(DevicesService);
   private readonly ordersService = inject(RepairOrdersService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
 
   protected readonly firstErrorMessage = firstErrorMessage;
@@ -427,6 +454,9 @@ export class OrderFormComponent implements CanComponentDeactivate {
   private searchTimeout?: ReturnType<typeof setTimeout>;
   private orderCreated = false;
 
+  protected readonly originalOrder = signal<RepairOrder | null>(null);
+  private originalOrderId: string | null = null;
+
   protected readonly customerForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.required, Validators.minLength(2)]],
     lastName: ['', [Validators.required, Validators.minLength(2)]],
@@ -451,6 +481,34 @@ export class OrderFormComponent implements CanComponentDeactivate {
     priority: ['normal' as RepairPriority, [Validators.required]],
     estimatedCompletionDate: [''],
   });
+
+  async ngOnInit(): Promise<void> {
+    const originalOrderId = this.route.snapshot.paramMap.get('originalOrderId');
+    if (!originalOrderId) {
+      return;
+    }
+    this.originalOrderId = originalOrderId;
+    const original = await this.ordersService.getById(originalOrderId);
+    if (!original) {
+      this.toast.error('No se encontró la orden original del reingreso.');
+      return;
+    }
+    this.originalOrder.set(original);
+
+    const [customer, device] = await Promise.all([
+      this.customersService.getById(original.customerId),
+      this.devicesService.getById(original.deviceId),
+    ]);
+    if (customer) {
+      await this.pickCustomer(customer);
+    }
+    if (device) {
+      this.pickDevice(device);
+    }
+    this.orderForm.patchValue({
+      receptionNotes: `Reingreso de la orden ${original.code}.`,
+    });
+  }
 
   hasUnsavedChanges(): boolean {
     return !this.orderCreated && (!!this.selectedCustomer() || this.customerForm.dirty || this.orderForm.dirty);
@@ -576,6 +634,7 @@ export class OrderFormComponent implements CanComponentDeactivate {
         receptionNotes: value.receptionNotes || null,
         priority: value.priority,
         estimatedCompletionDate: value.estimatedCompletionDate || null,
+        relatedOrderId: this.originalOrderId,
       });
       this.orderCreated = true;
       this.toast.success(`Orden ${order.code} creada correctamente.`);

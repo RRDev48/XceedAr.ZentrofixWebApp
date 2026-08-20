@@ -33,6 +33,7 @@ interface RepairOrderListRow {
   balance_due: number;
   internal_notes: string | null;
   delivered_at: string | null;
+  related_order_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -68,6 +69,7 @@ function mapRow(row: RepairOrderListRow): RepairOrder {
     balanceDue: Number(row.balance_due),
     internalNotes: row.internal_notes,
     deliveredAt: row.delivered_at,
+    relatedOrderId: row.related_order_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -146,6 +148,19 @@ export class RepairOrdersService {
     return (data as RepairOrderListRow[]).map(mapRow);
   }
 
+  /** Órdenes de reingreso creadas a partir de esta orden (garantía / reingreso). */
+  async listReingresos(orderId: string): Promise<RepairOrder[]> {
+    const { data, error } = await this.supabase.client
+      .from('repair_orders_list')
+      .select('*')
+      .eq('related_order_id', orderId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data as RepairOrderListRow[]).map(mapRow);
+  }
+
   async listRecent(limit = 8): Promise<RepairOrder[]> {
     const { data, error } = await this.supabase.client
       .from('repair_orders_list')
@@ -181,6 +196,7 @@ export class RepairOrdersService {
         reception_notes: value.receptionNotes?.trim() || null,
         priority: value.priority,
         estimated_completion_date: value.estimatedCompletionDate || null,
+        related_order_id: value.relatedOrderId || null,
       })
       .select('id')
       .single();

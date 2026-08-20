@@ -89,6 +89,7 @@ export interface RepairOrder {
   balanceDue: number;
   internalNotes: string | null;
   deliveredAt: string | null;
+  relatedOrderId: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -105,6 +106,7 @@ export interface RepairOrderFormValue {
   receptionNotes: string | null;
   priority: RepairPriority;
   estimatedCompletionDate: string | null;
+  relatedOrderId?: string | null;
 }
 
 export interface RepairStatusHistoryEntry {

@@ -60,8 +60,30 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <span class="zf-badge" [class.zf-badge--green]="paymentStatus() === 'pagado_total'">
               {{ paymentStatusLabels[paymentStatus()] }}
             </span>
+            <a [routerLink]="['/ordenes', order()!.id, 'reingreso']" class="zf-btn zf-btn--ghost zf-btn--sm">
+              + Crear reingreso
+            </a>
           </div>
         </div>
+
+        @if (originalOrder() || reingresos().length > 0) {
+          <div class="related-banner">
+            @if (originalOrder()) {
+              <span>
+                Esta orden es un reingreso de
+                <a [routerLink]="['/ordenes', originalOrder()!.id]">{{ originalOrder()!.code }}</a>.
+              </span>
+            }
+            @if (reingresos().length > 0) {
+              <span>
+                Tiene {{ reingresos().length }} reingreso(s):
+                @for (r of reingresos(); track r.id) {
+                  <a [routerLink]="['/ordenes', r.id]">{{ r.code }}</a>
+                }
+              </span>
+            }
+          </div>
+        }
 
         <div class="detail-grid">
           <div class="detail-col">
@@ -467,6 +489,25 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         display: flex;
         gap: 0.4rem;
         flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .related-banner {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        background: var(--zf-purple-soft);
+        border: 1px solid rgba(156, 44, 255, 0.35);
+        border-radius: var(--zf-radius-sm);
+        padding: 0.75rem 0.9rem;
+        font-size: 0.85rem;
+        color: var(--zf-text-secondary);
+        margin-bottom: 1.25rem;
+      }
+
+      .related-banner a {
+        font-weight: 600;
+        margin-left: 0.35rem;
       }
 
       .detail-grid {
@@ -726,6 +767,8 @@ export class OrderDetailComponent implements OnInit {
   protected readonly templateTypes = Object.keys(COMMUNICATION_TEMPLATE_LABELS) as CommunicationTemplateType[];
 
   protected readonly order = signal<RepairOrder | null>(null);
+  protected readonly originalOrder = signal<RepairOrder | null>(null);
+  protected readonly reingresos = signal<RepairOrder[]>([]);
   protected readonly history = signal<RepairStatusHistoryEntry[]>([]);
   protected readonly quotes = signal<Quote[]>([]);
   protected readonly quoteStatusLabels = QUOTE_APPROVAL_LABELS;
@@ -819,6 +862,13 @@ export class OrderDetailComponent implements OnInit {
           internalNotes: order.internalNotes ?? '',
         });
         this.regenerateMessage();
+
+        const [originalOrder, reingresos] = await Promise.all([
+          order.relatedOrderId ? this.ordersService.getById(order.relatedOrderId) : Promise.resolve(null),
+          this.ordersService.listReingresos(this.orderId),
+        ]);
+        this.originalOrder.set(originalOrder);
+        this.reingresos.set(reingresos);
       }
     } catch {
       this.toast.error('No se pudo cargar la orden.');

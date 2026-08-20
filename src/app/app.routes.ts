@@ -112,6 +112,13 @@ export const routes: Routes = [
         title: 'Orden — Zentrofix',
       },
       {
+        path: 'ordenes/:originalOrderId/reingreso',
+        loadComponent: () =>
+          import('./features/repair-orders/order-form/order-form.component').then((m) => m.OrderFormComponent),
+        canDeactivate: [unsavedChangesGuard],
+        title: 'Nuevo reingreso — Zentrofix',
+      },
+      {
         path: 'ordenes/:orderId/presupuestos/nuevo',
         loadComponent: () => import('./features/quotes/quote-form.component').then((m) => m.QuoteFormComponent),
         canDeactivate: [unsavedChangesGuard],
