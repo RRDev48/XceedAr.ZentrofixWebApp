@@ -204,7 +204,7 @@ interface FlowCard {
 
       @media (min-width: 1000px) {
         .flow-grid {
-          grid-template-columns: repeat(6, 1fr);
+          grid-template-columns: repeat(7, 1fr);
         }
       }
 
