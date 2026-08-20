@@ -321,8 +321,6 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                             >
                               Eliminar
                             </button>
-                          } @else {
-                            <span class="zf-hint quote-locked-hint">🔒 Aprobado: no se puede editar ni eliminar</span>
                           }
                         </div>
                       </div>
