@@ -244,7 +244,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     @if (savingPricing()) {
                       <span class="zf-spinner"></span>
                     }
-                    Guardar y presupuestar
+                    Guardar presupuesto
                   </button>
                 </form>
               }
@@ -321,6 +321,8 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                             >
                               Eliminar
                             </button>
+                          } @else {
+                            <span class="zf-hint quote-locked-hint">🔒 Aprobado: no se puede editar ni eliminar</span>
                           }
                         </div>
                       </div>
@@ -704,10 +706,6 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 </button>
               }
 
-              <p class="zf-hint modal-footnote">
-                El sistema solo registra que el mensaje fue preparado y que se abrió WhatsApp: el envío real lo hacés
-                vos desde el WhatsApp oficial de Zentrofix.
-              </p>
             </div>
           </div>
         }
@@ -1325,7 +1323,12 @@ export class OrderDetailComponent implements OnInit {
   protected readonly priorityLabels = REPAIR_PRIORITY_LABELS;
   protected readonly paymentStatusLabels = PAYMENT_STATUS_LABELS;
   protected readonly templateLabels = COMMUNICATION_TEMPLATE_LABELS;
-  protected readonly templateTypes = Object.keys(COMMUNICATION_TEMPLATE_LABELS) as CommunicationTemplateType[];
+  // "Presupuesto listo" y "Comprobante digital" tienen su propio flujo dedicado en el modal
+  // de WhatsApp (con el detalle real de items/enlace), así que no se listan acá para evitar
+  // enviar una versión genérica en su lugar.
+  protected readonly templateTypes = (Object.keys(COMMUNICATION_TEMPLATE_LABELS) as CommunicationTemplateType[]).filter(
+    (t) => t !== 'presupuesto_listo' && t !== 'comprobante_digital',
+  );
 
   protected readonly order = signal<RepairOrder | null>(null);
   protected readonly originalOrder = signal<RepairOrder | null>(null);
