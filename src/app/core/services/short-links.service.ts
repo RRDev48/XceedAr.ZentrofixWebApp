@@ -40,4 +40,43 @@ export class ShortLinksService {
     }
     throw new Error('No se pudo generar un enlace corto.');
   }
+
+  /**
+   * Reutiliza el enlace corto ya creado para esta orden y este título (por ejemplo, el
+   * comprobante digital), actualizando su destino y vencimiento, en vez de acumular un
+   * enlace nuevo cada vez que se comparte de nuevo.
+   */
+  async upsertForOrder(
+    repairOrderId: string,
+    title: string,
+    targetUrl: string,
+    expiresInSeconds: number,
+  ): Promise<string> {
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    const { data: existingRows, error: existingError } = await this.supabase.client
+      .from('short_links')
+      .select('code')
+      .eq('repair_order_id', repairOrderId)
+      .eq('title', title)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (existingError) {
+      throw new Error(existingError.message);
+    }
+    const existing = existingRows?.[0] as { code: string } | undefined;
+
+    if (existing) {
+      const { error } = await this.supabase.client
+        .from('short_links')
+        .update({ target_url: targetUrl, expires_at: expiresAt })
+        .eq('code', existing.code);
+      if (error) {
+        throw new Error(error.message);
+      }
+      return `${window.location.origin}/s/${existing.code}`;
+    }
+
+    return this.create(targetUrl, title, repairOrderId, expiresInSeconds);
+  }
 }

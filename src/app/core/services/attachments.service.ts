@@ -93,6 +93,53 @@ export class AttachmentsService {
     return this.upload(repairOrderId, file, category);
   }
 
+  /**
+   * Genera o reemplaza el adjunto de una categoría para una orden (por ejemplo, el
+   * comprobante digital). Si ya existe uno, se sobrescribe el mismo archivo en Storage
+   * y se actualiza su fila en vez de acumular copias nuevas cada vez que se regenera.
+   */
+  async upsertForOrder(
+    repairOrderId: string,
+    blob: Blob,
+    fileName: string,
+    category: AttachmentCategory,
+  ): Promise<Attachment> {
+    const { data: existingRows, error: existingError } = await this.supabase.client
+      .from('attachments')
+      .select('*')
+      .eq('repair_order_id', repairOrderId)
+      .eq('category', category)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (existingError) {
+      throw new Error(existingError.message);
+    }
+    const existing = (existingRows as AttachmentRow[] | null)?.[0];
+
+    if (!existing) {
+      return this.uploadBlob(repairOrderId, blob, fileName, category);
+    }
+
+    const file = new File([blob], fileName, { type: blob.type });
+    const { error: uploadError } = await this.supabase.client.storage
+      .from(BUCKET)
+      .upload(existing.storage_path, file, { contentType: file.type || undefined, upsert: true });
+    if (uploadError) {
+      throw new Error(uploadError.message);
+    }
+
+    const { data, error } = await this.supabase.client
+      .from('attachments')
+      .update({ file_name: fileName, content_type: file.type || null, size_bytes: file.size })
+      .eq('id', existing.id)
+      .select('*')
+      .single();
+    if (error) {
+      throw new Error(error.message);
+    }
+    return mapAttachment(data as AttachmentRow);
+  }
+
   /** URL temporal para ver/descargar un adjunto de un bucket privado (por defecto, 1 hora). */
   async getSignedUrl(storagePath: string, expiresInSeconds = 3600): Promise<string> {
     const { data, error } = await this.supabase.client.storage

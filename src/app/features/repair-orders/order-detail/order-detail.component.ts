@@ -101,82 +101,12 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             </section>
 
             <section class="zf-card">
-              <div class="section-header">
-                <h2>Presupuestos</h2>
-                <a [routerLink]="['/ordenes', order()!.id, 'presupuestos', 'nuevo']" class="zf-btn zf-btn--ghost zf-btn--sm">
-                  + Nuevo
-                </a>
-              </div>
-
-              @if (quotes().length === 0) {
-                <p class="zf-hint">Todavía no hay presupuestos cargados para esta orden.</p>
-              } @else {
-                <div class="quote-list">
-                  @for (q of quotes(); track q.id) {
-                    <div class="quote-item">
-                      <div class="quote-item__top">
-                        <span class="quote-item__total">{{ q.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</span>
-                        <span
-                          class="zf-badge"
-                          [class.zf-badge--green]="q.approvalStatus === 'aprobado'"
-                          [class.zf-badge--danger]="q.approvalStatus === 'rechazado'"
-                        >
-                          {{ quoteStatusLabels[q.approvalStatus] }}
-                        </span>
-                      </div>
-                      <div class="quote-item__meta">
-                        {{ q.items.length }} ítem(s) · creado {{ q.createdAt | date: 'dd/MM/yyyy' }}
-                        @if (q.validUntil) {
-                          · vigente hasta {{ q.validUntil | date: 'dd/MM/yyyy' }}
-                        }
-                      </div>
-
-                      <div class="quote-item__actions">
-                        <a
-                          [routerLink]="['/ordenes', order()!.id, 'presupuestos', q.id, 'editar']"
-                          class="zf-btn zf-btn--ghost zf-btn--sm"
-                        >
-                          Editar
-                        </a>
-                        <button
-                          type="button"
-                          class="zf-btn zf-btn--whatsapp zf-btn--sm"
-                          [disabled]="quoteActionBusy() === q.id"
-                          (click)="sendQuoteWhatsApp(q)"
-                        >
-                          @if (quoteActionBusy() === q.id) {
-                            <span class="zf-spinner"></span>
-                          }
-                          {{ q.sentAt ? 'Reenviar por WhatsApp' : 'Enviar por WhatsApp' }}
-                        </button>
-                        @if (q.approvalStatus === 'pendiente') {
-                          <button
-                            type="button"
-                            class="zf-btn zf-btn--primary zf-btn--sm"
-                            [disabled]="quoteActionBusy() === q.id"
-                            (click)="respondQuote(q.id, 'aprobado')"
-                          >
-                            Registrar aprobación
-                          </button>
-                          <button
-                            type="button"
-                            class="zf-btn zf-btn--danger zf-btn--sm"
-                            [disabled]="quoteActionBusy() === q.id"
-                            (click)="respondQuote(q.id, 'rechazado')"
-                          >
-                            Registrar rechazo
-                          </button>
-                        }
-                      </div>
-                    </div>
-                  }
-                </div>
-              }
-            </section>
-
-            <section class="zf-card">
-              <h2>Diagnóstico, costos y pagos</h2>
-              <form [formGroup]="detailsForm" (ngSubmit)="saveDetails()" novalidate>
+              <h2>Diagnóstico y presupuesto</h2>
+              <p class="zf-hint zf-hint--block" style="margin-top: -0.5rem; margin-bottom: 1rem;">
+                Esta sección reúne lo que corresponde compartir con el cliente: diagnóstico, trabajo, precio y
+                presupuestos. Los costos internos se cargan aparte, más abajo.
+              </p>
+              <form [formGroup]="diagnosisForm" (ngSubmit)="saveDiagnosis()" novalidate>
                 <div class="zf-field">
                   <label for="technicalDiagnosis">Diagnóstico técnico</label>
                   <textarea id="technicalDiagnosis" class="zf-textarea" formControlName="technicalDiagnosis"></textarea>
@@ -188,6 +118,111 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
                 <div class="zf-grid-2">
                   <div class="zf-field">
+                    <label for="customerPrice">Precio al cliente</label>
+                    <input id="customerPrice" type="number" min="0" step="0.01" class="zf-input" formControlName="customerPrice" />
+                  </div>
+                  <div class="zf-field">
+                    <label for="discount">Descuento</label>
+                    <input id="discount" type="number" min="0" step="0.01" class="zf-input" formControlName="discount" />
+                  </div>
+                </div>
+
+                <div class="totals-row">
+                  <span>Total: <strong>{{ order()!.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
+                </div>
+
+                <button type="submit" class="zf-btn zf-btn--primary" [disabled]="savingDetails()">
+                  @if (savingDetails()) {
+                    <span class="zf-spinner"></span>
+                  }
+                  Guardar diagnóstico y presupuesto
+                </button>
+              </form>
+
+              <div class="subsection">
+                <div class="section-header">
+                  <h3>Presupuestos formales</h3>
+                  <a [routerLink]="['/ordenes', order()!.id, 'presupuestos', 'nuevo']" class="zf-btn zf-btn--ghost zf-btn--sm">
+                    + Nuevo
+                  </a>
+                </div>
+
+                @if (quotes().length === 0) {
+                  <p class="zf-hint">Todavía no hay presupuestos por ítems cargados para esta orden.</p>
+                } @else {
+                  <div class="quote-list">
+                    @for (q of quotes(); track q.id) {
+                      <div class="quote-item">
+                        <div class="quote-item__top">
+                          <span class="quote-item__total">{{ q.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</span>
+                          <span
+                            class="zf-badge"
+                            [class.zf-badge--green]="q.approvalStatus === 'aprobado'"
+                            [class.zf-badge--danger]="q.approvalStatus === 'rechazado'"
+                          >
+                            {{ quoteStatusLabels[q.approvalStatus] }}
+                          </span>
+                        </div>
+                        <div class="quote-item__meta">
+                          {{ q.items.length }} ítem(s) · creado {{ q.createdAt | date: 'dd/MM/yyyy' }}
+                          @if (q.validUntil) {
+                            · vigente hasta {{ q.validUntil | date: 'dd/MM/yyyy' }}
+                          }
+                        </div>
+
+                        <div class="quote-item__actions">
+                          <a
+                            [routerLink]="['/ordenes', order()!.id, 'presupuestos', q.id, 'editar']"
+                            class="zf-btn zf-btn--ghost zf-btn--sm"
+                          >
+                            Editar
+                          </a>
+                          <button
+                            type="button"
+                            class="zf-btn zf-btn--whatsapp zf-btn--sm"
+                            [disabled]="quoteActionBusy() === q.id"
+                            (click)="sendQuoteWhatsApp(q)"
+                          >
+                            @if (quoteActionBusy() === q.id) {
+                              <span class="zf-spinner"></span>
+                            }
+                            {{ q.sentAt ? 'Reenviar por WhatsApp' : 'Enviar por WhatsApp' }}
+                          </button>
+                          @if (q.approvalStatus === 'pendiente') {
+                            <button
+                              type="button"
+                              class="zf-btn zf-btn--primary zf-btn--sm"
+                              [disabled]="quoteActionBusy() === q.id"
+                              (click)="respondQuote(q.id, 'aprobado')"
+                            >
+                              Registrar aprobación
+                            </button>
+                            <button
+                              type="button"
+                              class="zf-btn zf-btn--danger zf-btn--sm"
+                              [disabled]="quoteActionBusy() === q.id"
+                              (click)="respondQuote(q.id, 'rechazado')"
+                            >
+                              Registrar rechazo
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </section>
+
+            <section class="zf-card">
+              <h2>Costos internos</h2>
+              <p class="zf-hint zf-hint--block" style="margin-top: -0.5rem; margin-bottom: 1rem;">
+                Uso interno: nunca se muestran al cliente ni se incluyen en el comprobante ni en los mensajes de
+                WhatsApp.
+              </p>
+              <form [formGroup]="internalForm" (ngSubmit)="saveInternalCosts()" novalidate>
+                <div class="zf-grid-2">
+                  <div class="zf-field">
                     <label for="partsCost">Costo de repuestos</label>
                     <input id="partsCost" type="number" min="0" step="0.01" class="zf-input" formControlName="partsCost" />
                   </div>
@@ -196,49 +231,32 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     <input id="laborCost" type="number" min="0" step="0.01" class="zf-input" formControlName="laborCost" />
                   </div>
                 </div>
-                <div class="zf-grid-2">
-                  <div class="zf-field">
-                    <label for="internalCost">Costo interno (uso interno)</label>
-                    <input id="internalCost" type="number" min="0" step="0.01" class="zf-input" formControlName="internalCost" />
-                    <span class="zf-hint">Nunca se muestra ni se envía al cliente.</span>
-                  </div>
-                  <div class="zf-field">
-                    <label for="customerPrice">Precio al cliente</label>
-                    <input id="customerPrice" type="number" min="0" step="0.01" class="zf-input" formControlName="customerPrice" />
-                  </div>
-                </div>
                 <div class="zf-field">
-                  <label for="discount">Descuento</label>
-                  <input id="discount" type="number" min="0" step="0.01" class="zf-input" formControlName="discount" />
+                  <label for="internalCost">Costo interno adicional</label>
+                  <input id="internalCost" type="number" min="0" step="0.01" class="zf-input" formControlName="internalCost" />
                 </div>
-
-                <div class="totals-row">
-                  <span>Total: <strong>{{ order()!.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
-                  <span>Pagado a cuenta: <strong>{{ order()!.deposit | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
-                  <span>Saldo pendiente: <strong>{{ order()!.balanceDue | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
-                </div>
-                <p class="zf-hint zf-hint--block">
-                  El pagado a cuenta se calcula automáticamente a partir de los pagos registrados en la sección
-                  "Pagos", más abajo.
-                </p>
-
                 <div class="zf-field">
                   <label for="internalNotes">Observaciones internas</label>
                   <textarea id="internalNotes" class="zf-textarea" formControlName="internalNotes"></textarea>
-                  <span class="zf-hint">Uso interno: nunca se incluye en los mensajes al cliente.</span>
                 </div>
 
-                <button type="submit" class="zf-btn zf-btn--primary" [disabled]="savingDetails()">
-                  @if (savingDetails()) {
+                <button type="submit" class="zf-btn zf-btn--dark" [disabled]="savingInternalCosts()">
+                  @if (savingInternalCosts()) {
                     <span class="zf-spinner"></span>
                   }
-                  Guardar cambios
+                  Guardar costos internos
                 </button>
               </form>
             </section>
 
             <section class="zf-card">
               <h2>Pagos</h2>
+
+              <div class="totals-row">
+                <span>Total: <strong>{{ order()!.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
+                <span>Pagado a cuenta: <strong>{{ order()!.deposit | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
+                <span>Saldo pendiente: <strong>{{ order()!.balanceDue | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
+              </div>
 
               @if (payments().length === 0) {
                 <p class="zf-hint">Todavía no se registraron pagos para esta orden.</p>
@@ -260,37 +278,42 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 </div>
               }
 
-              <div class="payment-form">
-                <input
-                  class="zf-input"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  [(ngModel)]="paymentAmount"
-                  [ngModelOptions]="{ standalone: true }"
-                  placeholder="Importe"
-                />
-                <select class="zf-select" [(ngModel)]="paymentMethod" [ngModelOptions]="{ standalone: true }">
-                  @for (m of paymentMethods; track m) {
-                    <option [value]="m">{{ paymentMethodLabels[m] }}</option>
-                  }
-                </select>
-                <label class="payment-form__checkbox">
-                  <input type="checkbox" [(ngModel)]="paymentIsDeposit" [ngModelOptions]="{ standalone: true }" />
-                  Es una seña
-                </label>
-                <button
-                  type="button"
-                  class="zf-btn zf-btn--primary"
-                  [disabled]="registeringPayment()"
-                  (click)="registerPayment()"
-                >
-                  @if (registeringPayment()) {
-                    <span class="zf-spinner"></span>
-                  }
-                  Registrar pago
-                </button>
-              </div>
+              @if (order()!.balanceDue <= 0) {
+                <p class="paid-in-full">✓ Esta orden está pagada en su totalidad. No se pueden registrar más pagos.</p>
+              } @else {
+                <div class="payment-form">
+                  <input
+                    class="zf-input"
+                    type="number"
+                    min="0.01"
+                    [max]="order()!.balanceDue"
+                    step="0.01"
+                    [(ngModel)]="paymentAmount"
+                    [ngModelOptions]="{ standalone: true }"
+                    placeholder="Importe"
+                  />
+                  <select class="zf-select" [(ngModel)]="paymentMethod" [ngModelOptions]="{ standalone: true }">
+                    @for (m of paymentMethods; track m) {
+                      <option [value]="m">{{ paymentMethodLabels[m] }}</option>
+                    }
+                  </select>
+                  <label class="payment-form__checkbox">
+                    <input type="checkbox" [(ngModel)]="paymentIsDeposit" [ngModelOptions]="{ standalone: true }" />
+                    Es una seña
+                  </label>
+                  <button
+                    type="button"
+                    class="zf-btn zf-btn--primary"
+                    [disabled]="registeringPayment()"
+                    (click)="registerPayment()"
+                  >
+                    @if (registeringPayment()) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Registrar pago
+                  </button>
+                </div>
+              }
             </section>
 
             <section class="zf-card">
@@ -613,6 +636,28 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         gap: 0.5rem;
       }
 
+      .subsection {
+        margin-top: 1.5rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--zf-border-soft);
+      }
+
+      .subsection h3 {
+        font-size: 0.88rem;
+        color: var(--zf-text);
+        margin: 0;
+      }
+
+      .paid-in-full {
+        background: var(--zf-purple-soft);
+        border: 1px solid rgba(156, 44, 255, 0.35);
+        color: var(--zf-text-secondary);
+        border-radius: var(--zf-radius-sm);
+        padding: 0.75rem 0.9rem;
+        font-size: 0.88rem;
+        margin: 0;
+      }
+
       .zf-card p {
         font-size: 0.9rem;
         margin: 0 0 0.5rem;
@@ -877,14 +922,21 @@ export class OrderDetailComponent implements OnInit {
   protected messageText = '';
   private orderId = '';
 
-  protected readonly detailsForm = this.fb.nonNullable.group({
+  protected readonly savingInternalCosts = signal(false);
+
+  /** Diagnóstico y presupuesto: lo que tiene sentido compartir con el cliente. */
+  protected readonly diagnosisForm = this.fb.nonNullable.group({
     technicalDiagnosis: [''],
     recommendedWork: [''],
+    customerPrice: [0, [positiveAmountValidator()]],
+    discount: [0, [positiveAmountValidator()]],
+  });
+
+  /** Costos internos: nunca se comparten con el cliente ni se incluyen en el comprobante. */
+  protected readonly internalForm = this.fb.nonNullable.group({
     partsCost: [0, [positiveAmountValidator()]],
     laborCost: [0, [positiveAmountValidator()]],
     internalCost: [0, [positiveAmountValidator()]],
-    customerPrice: [0, [positiveAmountValidator()]],
-    discount: [0, [positiveAmountValidator()]],
     internalNotes: [''],
   });
 
@@ -918,14 +970,16 @@ export class OrderDetailComponent implements OnInit {
       if (order) {
         this.newStatus = order.status;
         this.paymentStatus.set(this.ordersService.paymentStatusOf(order));
-        this.detailsForm.patchValue({
+        this.diagnosisForm.patchValue({
           technicalDiagnosis: order.technicalDiagnosis ?? '',
           recommendedWork: order.recommendedWork ?? '',
+          customerPrice: order.customerPrice,
+          discount: order.discount,
+        });
+        this.internalForm.patchValue({
           partsCost: order.partsCost,
           laborCost: order.laborCost,
           internalCost: order.internalCost,
-          customerPrice: order.customerPrice,
-          discount: order.discount,
           internalNotes: order.internalNotes ?? '',
         });
         this.regenerateMessage();
@@ -973,14 +1027,15 @@ export class OrderDetailComponent implements OnInit {
     }
   }
 
-  async saveDetails(): Promise<void> {
-    if (this.savingDetails() || this.detailsForm.invalid || !this.order()) {
-      this.detailsForm.markAllAsTouched();
+  async saveDiagnosis(): Promise<void> {
+    if (this.savingDetails() || this.diagnosisForm.invalid || !this.order()) {
+      this.diagnosisForm.markAllAsTouched();
       return;
     }
     this.savingDetails.set(true);
     try {
-      const value = this.detailsForm.getRawValue();
+      const value = this.diagnosisForm.getRawValue();
+      const internal = this.internalForm.getRawValue();
       const updated = await this.ordersService.updateDetails(this.orderId, {
         reportedFault: this.order()!.reportedFault,
         receptionNotes: this.order()!.receptionNotes,
@@ -988,21 +1043,55 @@ export class OrderDetailComponent implements OnInit {
         recommendedWork: value.recommendedWork || null,
         priority: this.order()!.priority,
         estimatedCompletionDate: this.order()!.estimatedCompletionDate,
-        partsCost: Number(value.partsCost) || 0,
-        laborCost: Number(value.laborCost) || 0,
-        internalCost: Number(value.internalCost) || 0,
+        partsCost: Number(internal.partsCost) || 0,
+        laborCost: Number(internal.laborCost) || 0,
+        internalCost: Number(internal.internalCost) || 0,
         customerPrice: Number(value.customerPrice) || 0,
         discount: Number(value.discount) || 0,
         deposit: this.order()!.deposit,
-        internalNotes: value.internalNotes || null,
+        internalNotes: internal.internalNotes || null,
       });
       this.order.set(updated);
       this.paymentStatus.set(this.ordersService.paymentStatusOf(updated));
-      this.toast.success('Cambios guardados correctamente.');
+      this.toast.success('Diagnóstico y presupuesto guardados correctamente.');
     } catch {
       this.toast.error('No se pudieron guardar los cambios.');
     } finally {
       this.savingDetails.set(false);
+    }
+  }
+
+  async saveInternalCosts(): Promise<void> {
+    if (this.savingInternalCosts() || this.internalForm.invalid || !this.order()) {
+      this.internalForm.markAllAsTouched();
+      return;
+    }
+    this.savingInternalCosts.set(true);
+    try {
+      const internal = this.internalForm.getRawValue();
+      const diagnosis = this.diagnosisForm.getRawValue();
+      const updated = await this.ordersService.updateDetails(this.orderId, {
+        reportedFault: this.order()!.reportedFault,
+        receptionNotes: this.order()!.receptionNotes,
+        technicalDiagnosis: diagnosis.technicalDiagnosis || null,
+        recommendedWork: diagnosis.recommendedWork || null,
+        priority: this.order()!.priority,
+        estimatedCompletionDate: this.order()!.estimatedCompletionDate,
+        partsCost: Number(internal.partsCost) || 0,
+        laborCost: Number(internal.laborCost) || 0,
+        internalCost: Number(internal.internalCost) || 0,
+        customerPrice: Number(diagnosis.customerPrice) || 0,
+        discount: Number(diagnosis.discount) || 0,
+        deposit: this.order()!.deposit,
+        internalNotes: internal.internalNotes || null,
+      });
+      this.order.set(updated);
+      this.paymentStatus.set(this.ordersService.paymentStatusOf(updated));
+      this.toast.success('Costos internos guardados correctamente.');
+    } catch {
+      this.toast.error('No se pudieron guardar los costos internos.');
+    } finally {
+      this.savingInternalCosts.set(false);
     }
   }
 
@@ -1036,8 +1125,22 @@ export class OrderDetailComponent implements OnInit {
   }
 
   async registerPayment(): Promise<void> {
-    if (this.registeringPayment() || !this.paymentAmount || this.paymentAmount <= 0) {
+    const order = this.order();
+    if (this.registeringPayment() || !order || !this.paymentAmount || this.paymentAmount <= 0) {
       this.toast.error('Ingresá un importe válido.');
+      return;
+    }
+    if (order.balanceDue <= 0) {
+      this.toast.error('Esta orden ya está pagada en su totalidad.');
+      return;
+    }
+    if (this.paymentAmount > order.balanceDue) {
+      this.toast.error(
+        `El importe no puede superar el saldo pendiente (${new Intl.NumberFormat('es-AR', {
+          style: 'currency',
+          currency: 'ARS',
+        }).format(order.balanceDue)}).`,
+      );
       return;
     }
     this.registeringPayment.set(true);
@@ -1126,7 +1229,7 @@ export class OrderDetailComponent implements OnInit {
     try {
       const { blob, fileName } = await this.buildReceipt(order);
 
-      await this.attachmentsService.uploadBlob(this.orderId, blob, fileName, 'comprobante');
+      await this.attachmentsService.upsertForOrder(this.orderId, blob, fileName, 'comprobante');
       this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
 
       const url = URL.createObjectURL(blob);
@@ -1152,15 +1255,15 @@ export class OrderDetailComponent implements OnInit {
     this.sendingReceipt.set(true);
     try {
       const { blob, fileName } = await this.buildReceipt(order);
-      const attachment = await this.attachmentsService.uploadBlob(this.orderId, blob, fileName, 'comprobante');
+      const attachment = await this.attachmentsService.upsertForOrder(this.orderId, blob, fileName, 'comprobante');
       this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
 
       const expiresInSeconds = 60 * 60 * 24 * 7;
       const signedUrl = await this.attachmentsService.getSignedUrl(attachment.storagePath, expiresInSeconds);
-      const shortUrl = await this.shortLinksService.create(
-        signedUrl,
-        `Comprobante ${order.code}`,
+      const shortUrl = await this.shortLinksService.upsertForOrder(
         this.orderId,
+        `Comprobante ${order.code}`,
+        signedUrl,
         expiresInSeconds,
       );
       const message = this.whatsappService.buildReceiptMessage(order, shortUrl);
