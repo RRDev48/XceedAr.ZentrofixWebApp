@@ -214,6 +214,11 @@ export class QuoteFormComponent implements OnInit, CanComponentDeactivate {
       if (this.quoteId) {
         const quotes = await this.quotesService.listByOrder(this.orderId);
         const quote = quotes.find((q) => q.id === this.quoteId);
+        if (quote?.approvalStatus === 'aprobado') {
+          this.toast.error('Este presupuesto ya fue aprobado: no se puede editar.');
+          await this.router.navigate(['/ordenes', this.orderId]);
+          return;
+        }
         if (quote) {
           this.form.patchValue({
             laborCost: quote.laborCost,

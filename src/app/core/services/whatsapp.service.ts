@@ -50,34 +50,40 @@ export class WhatsappService {
     return TEMPLATES[templateType](order);
   }
 
-  /** Mensaje de presupuesto con el detalle real (ítems, mano de obra, descuento, total y vigencia). */
+  /**
+   * Mensaje de presupuesto con el detalle real (ítems, mano de obra, descuento, total y
+   * vigencia), separado en párrafos para que no quede amontonado. Nunca incluye el recargo
+   * ni ningún otro dato de margen: eso es información interna, no para el cliente.
+   */
   buildQuoteMessage(order: RepairOrder, quote: Quote): string {
     const itemLines = quote.items
+      .filter((i) => !/^Recargo\s*\(/i.test(i.description))
       .map((i) => `• ${i.description} x${i.quantity}: ${formatCurrencyAR(i.quantity * i.unitPrice)}`)
       .join('\n');
 
-    const parts: string[] = [
-      `Hola, ${order.customerName}. Somos Zentrofix. Tu presupuesto para ${order.deviceLabel} (orden ${order.code}) ya está listo:`,
+    const blocks: string[] = [
+      `Hola, ${order.customerName}. Somos Zentrofix.`,
+      `Tu presupuesto para *${order.deviceLabel}* (orden ${order.code}) ya está listo:`,
     ];
     if (itemLines) {
-      parts.push(itemLines);
+      blocks.push(itemLines);
     }
     if (quote.laborCost > 0) {
-      parts.push(`Mano de obra: ${formatCurrencyAR(quote.laborCost)}`);
+      blocks.push(`Mano de obra: ${formatCurrencyAR(quote.laborCost)}`);
     }
     if (quote.discount > 0) {
-      parts.push(`Descuento: ${formatCurrencyAR(quote.discount)}`);
+      blocks.push(`Descuento: ${formatCurrencyAR(quote.discount)}`);
     }
-    parts.push(`Total: ${formatCurrencyAR(quote.total)}`);
+    blocks.push(`*Total: ${formatCurrencyAR(quote.total)}*`);
     if (quote.validUntil) {
-      parts.push(`Válido hasta el ${formatDateAR(quote.validUntil)}.`);
+      blocks.push(`Válido hasta el ${formatDateAR(quote.validUntil)}.`);
     }
     if (quote.customerNotes) {
-      parts.push(quote.customerNotes);
+      blocks.push(quote.customerNotes);
     }
-    parts.push('Ante cualquier consulta o para confirmarlo, respondé este mensaje.');
+    blocks.push('Ante cualquier consulta o para confirmarlo, respondé este mensaje.');
 
-    return parts.join('\n');
+    return blocks.join('\n\n');
   }
 
   /** Mensaje con el enlace temporal de descarga del comprobante digital en PDF. */

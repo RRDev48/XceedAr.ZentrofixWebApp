@@ -126,12 +126,31 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
             <section class="zf-card">
               <h2>Presupuesto</h2>
-              <form [formGroup]="pricingForm" (ngSubmit)="savePricing()" novalidate>
+
+              <div class="tab-switch">
+                <button
+                  type="button"
+                  class="tab-btn"
+                  [class.tab-btn--active]="pricingMode() === 'calculadora'"
+                  (click)="pricingMode.set('calculadora')"
+                >
+                  Calculadora por ítems
+                </button>
+                <button
+                  type="button"
+                  class="tab-btn"
+                  [class.tab-btn--active]="pricingMode() === 'simple'"
+                  (click)="pricingMode.set('simple')"
+                >
+                  Precio simple
+                </button>
+              </div>
+
+              @if (pricingMode() === 'calculadora') {
                 <div class="calc-box">
-                  <h3>Calculadora de presupuesto (opcional)</h3>
                   <p class="zf-hint">
                     Cargá el valor de cada repuesto o ítem si corresponde, indicá el porcentaje que le sumás y
-                    aplicá el total calculado como precio al cliente.
+                    guardalo: crea un presupuesto formal, visible más abajo.
                   </p>
 
                   <div class="calc-items">
@@ -189,7 +208,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
                   <button
                     type="button"
-                    class="zf-btn zf-btn--primary zf-btn--sm"
+                    class="zf-btn zf-btn--primary"
                     [disabled]="savingCalcQuote()"
                     (click)="saveAndQuote()"
                   >
@@ -198,32 +217,37 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     }
                     Guardar y presupuestar
                   </button>
-                  <span class="zf-hint calc-save-hint">Crea un presupuesto formal con estos ítems, visible más abajo.</span>
                 </div>
+              }
 
-                <div class="zf-grid-2">
-                  <div class="zf-field">
-                    <label for="customerPrice">Precio al cliente (carga manual)</label>
-                    <input id="customerPrice" type="number" min="0" step="0.01" class="zf-input" formControlName="customerPrice" />
-                    <span class="zf-hint">Para casos simples sin presupuesto formal por ítems.</span>
+              @if (pricingMode() === 'simple') {
+                <form [formGroup]="pricingForm" (ngSubmit)="savePricing()" novalidate>
+                  <p class="zf-hint zf-hint--block" style="margin-top: 0;">
+                    Para casos simples que no necesitan un presupuesto formal por ítems.
+                  </p>
+                  <div class="zf-grid-2">
+                    <div class="zf-field">
+                      <label for="customerPrice">Precio al cliente</label>
+                      <input id="customerPrice" type="number" min="0" step="0.01" class="zf-input" formControlName="customerPrice" />
+                    </div>
+                    <div class="zf-field">
+                      <label for="discount">Descuento</label>
+                      <input id="discount" type="number" min="0" step="0.01" class="zf-input" formControlName="discount" />
+                    </div>
                   </div>
-                  <div class="zf-field">
-                    <label for="discount">Descuento</label>
-                    <input id="discount" type="number" min="0" step="0.01" class="zf-input" formControlName="discount" />
+
+                  <div class="totals-row">
+                    <span>Total: <strong>{{ order()!.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
                   </div>
-                </div>
 
-                <div class="totals-row">
-                  <span>Total: <strong>{{ order()!.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
-                </div>
-
-                <button type="submit" class="zf-btn zf-btn--primary" [disabled]="savingPricing()">
-                  @if (savingPricing()) {
-                    <span class="zf-spinner"></span>
-                  }
-                  Guardar presupuesto
-                </button>
-              </form>
+                  <button type="submit" class="zf-btn zf-btn--primary" [disabled]="savingPricing()">
+                    @if (savingPricing()) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Guardar presupuesto
+                  </button>
+                </form>
+              }
 
               <div class="subsection">
                 <div class="section-header">
@@ -262,12 +286,14 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                         </div>
 
                         <div class="quote-item__actions">
-                          <a
-                            [routerLink]="['/ordenes', order()!.id, 'presupuestos', q.id, 'editar']"
-                            class="zf-btn zf-btn--ghost zf-btn--sm"
-                          >
-                            Editar
-                          </a>
+                          @if (q.approvalStatus !== 'aprobado') {
+                            <a
+                              [routerLink]="['/ordenes', order()!.id, 'presupuestos', q.id, 'editar']"
+                              class="zf-btn zf-btn--ghost zf-btn--sm"
+                            >
+                              Editar
+                            </a>
+                          }
                           @if (q.approvalStatus === 'pendiente') {
                             <button
                               type="button"
@@ -286,14 +312,18 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                               Registrar rechazo
                             </button>
                           }
-                          <button
-                            type="button"
-                            class="zf-btn zf-btn--danger zf-btn--sm"
-                            [disabled]="quoteActionBusy() === q.id"
-                            (click)="removeQuote(q)"
-                          >
-                            Eliminar
-                          </button>
+                          @if (q.approvalStatus !== 'aprobado') {
+                            <button
+                              type="button"
+                              class="zf-btn zf-btn--danger zf-btn--sm"
+                              [disabled]="quoteActionBusy() === q.id"
+                              (click)="removeQuote(q)"
+                            >
+                              Eliminar
+                            </button>
+                          } @else {
+                            <span class="zf-hint quote-locked-hint">🔒 Aprobado: no se puede editar ni eliminar</span>
+                          }
                         </div>
                       </div>
                     }
@@ -811,6 +841,36 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         border-top: 1px solid var(--zf-border-soft);
       }
 
+      .tab-switch {
+        display: flex;
+        gap: 0.4rem;
+        margin-bottom: 1.1rem;
+        border-bottom: 1px solid var(--zf-border-soft);
+      }
+
+      .tab-btn {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--zf-text-muted);
+        font-weight: 600;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.25rem;
+        cursor: pointer;
+        margin-bottom: -1px;
+      }
+
+      .tab-btn--active {
+        color: var(--zf-blue);
+        border-bottom-color: var(--zf-blue);
+      }
+
+      .quote-locked-hint {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.8rem;
+      }
+
       .calc-box {
         background: var(--zf-surface-2);
         border: 1px solid var(--zf-border-soft);
@@ -1274,6 +1334,7 @@ export class OrderDetailComponent implements OnInit {
   protected readonly reingresos = signal<RepairOrder[]>([]);
   protected readonly history = signal<RepairStatusHistoryEntry[]>([]);
   protected readonly quotes = signal<Quote[]>([]);
+  protected readonly pricingMode = signal<'calculadora' | 'simple'>('calculadora');
   protected readonly deletedQuotes = signal<Quote[]>([]);
   protected readonly showQuoteHistory = signal(false);
   protected readonly loadingQuoteHistory = signal(false);
@@ -1420,6 +1481,10 @@ export class OrderDetailComponent implements OnInit {
   }
 
   async removeQuote(quote: Quote): Promise<void> {
+    if (quote.approvalStatus === 'aprobado') {
+      this.toast.error('Este presupuesto ya fue aprobado: no se puede eliminar.');
+      return;
+    }
     if (!window.confirm('¿Eliminar este presupuesto? Va a dejar de estar activo, pero queda como historial.')) {
       return;
     }
