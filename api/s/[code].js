@@ -58,7 +58,9 @@ function sendLandingPage(res, targetUrl, title) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta property="og:title" content="${safeTitle} — Zentrofix">
 <meta property="og:description" content="Gestión técnica de reparaciones · Zentrofix">
-<meta property="og:image" content="https://gestor-zentrofix.vercel.app/assets/branding/logo-principal.png">
+<meta property="og:image" content="https://gestor-zentrofix.vercel.app/assets/branding/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#08090c">
 <style>
