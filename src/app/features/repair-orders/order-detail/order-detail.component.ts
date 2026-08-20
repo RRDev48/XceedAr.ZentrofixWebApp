@@ -137,16 +137,17 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                         >
                           Editar
                         </a>
-                        @if (!q.sentAt) {
-                          <button
-                            type="button"
-                            class="zf-btn zf-btn--ghost zf-btn--sm"
-                            [disabled]="quoteActionBusy() === q.id"
-                            (click)="markQuoteSent(q.id)"
-                          >
-                            Marcar enviado
-                          </button>
-                        }
+                        <button
+                          type="button"
+                          class="zf-btn zf-btn--whatsapp zf-btn--sm"
+                          [disabled]="quoteActionBusy() === q.id"
+                          (click)="sendQuoteWhatsApp(q)"
+                        >
+                          @if (quoteActionBusy() === q.id) {
+                            <span class="zf-spinner"></span>
+                          }
+                          {{ q.sentAt ? 'Reenviar por WhatsApp' : 'Enviar por WhatsApp' }}
+                        </button>
                         @if (q.approvalStatus === 'pendiente') {
                           <button
                             type="button"
@@ -335,17 +336,30 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <section class="zf-card">
               <div class="section-header">
                 <h2>Comprobante y adjuntos</h2>
-                <button
-                  type="button"
-                  class="zf-btn zf-btn--ghost zf-btn--sm"
-                  [disabled]="generatingReceipt()"
-                  (click)="generateReceipt()"
-                >
-                  @if (generatingReceipt()) {
-                    <span class="zf-spinner"></span>
-                  }
-                  Generar comprobante PDF
-                </button>
+                <div class="section-header__actions">
+                  <button
+                    type="button"
+                    class="zf-btn zf-btn--ghost zf-btn--sm"
+                    [disabled]="generatingReceipt()"
+                    (click)="generateReceipt()"
+                  >
+                    @if (generatingReceipt()) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Descargar PDF
+                  </button>
+                  <button
+                    type="button"
+                    class="zf-btn zf-btn--whatsapp zf-btn--sm"
+                    [disabled]="sendingReceipt()"
+                    (click)="sendReceiptWhatsApp()"
+                  >
+                    @if (sendingReceipt()) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Enviar por WhatsApp
+                  </button>
+                </div>
               </div>
 
               <div class="upload-row">
@@ -408,14 +422,22 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               </button>
 
               @if (history().length > 0) {
-                <div class="history-list">
-                  @for (h of history(); track h.id) {
-                    <div class="history-item">
-                      <div class="history-item__status">{{ statusLabels[h.toStatus] }}</div>
-                      <div class="history-item__date">{{ h.changedAt | date: 'dd/MM/yyyy HH:mm' }}</div>
-                      @if (h.note) {
-                        <div class="history-item__note">{{ h.note }}</div>
-                      }
+                <div class="timeline">
+                  @for (h of history(); track h.id; let last = $last; let first = $first) {
+                    <div class="timeline-item">
+                      <div class="timeline-item__rail">
+                        <span class="timeline-item__dot" [class.timeline-item__dot--current]="first"></span>
+                        @if (!last) {
+                          <span class="timeline-item__line"></span>
+                        }
+                      </div>
+                      <div class="timeline-item__content">
+                        <div class="history-item__status">{{ statusLabels[h.toStatus] }}</div>
+                        <div class="history-item__date">{{ h.changedAt | date: 'dd/MM/yyyy HH:mm' }}</div>
+                        @if (h.note) {
+                          <div class="history-item__note">{{ h.note }}</div>
+                        }
+                      </div>
                     </div>
                   }
                 </div>
@@ -538,7 +560,15 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
         margin-bottom: 0.85rem;
+      }
+
+      .section-header__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
       }
 
       .section-header h2 {
@@ -601,17 +631,51 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         color: var(--zf-text);
       }
 
-      .history-list {
+      .timeline {
         margin-top: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.6rem;
         border-top: 1px solid var(--zf-border);
-        padding-top: 0.85rem;
+        padding-top: 1rem;
       }
 
-      .history-item {
+      .timeline-item {
+        display: flex;
+        gap: 0.75rem;
         font-size: 0.85rem;
+      }
+
+      .timeline-item__rail {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 12px;
+        flex-shrink: 0;
+      }
+
+      .timeline-item__dot {
+        width: 11px;
+        height: 11px;
+        min-height: 11px;
+        border-radius: 50%;
+        background: var(--zf-surface-2);
+        border: 2px solid var(--zf-border);
+        flex-shrink: 0;
+      }
+
+      .timeline-item__dot--current {
+        background: var(--zf-gradient);
+        border-color: transparent;
+      }
+
+      .timeline-item__line {
+        width: 2px;
+        flex: 1;
+        min-height: 1.4rem;
+        background: var(--zf-border);
+        margin: 2px 0;
+      }
+
+      .timeline-item__content {
+        padding-bottom: 1.1rem;
       }
 
       .history-item__status {
@@ -798,6 +862,7 @@ export class OrderDetailComponent implements OnInit {
   protected uploadCategory: AttachmentCategory = 'foto_recepcion';
   protected readonly uploadingFile = signal(false);
   protected readonly generatingReceipt = signal(false);
+  protected readonly sendingReceipt = signal(false);
 
   protected readonly loading = signal(true);
   protected readonly savingDetails = signal(false);
@@ -1045,6 +1110,11 @@ export class OrderDetailComponent implements OnInit {
     }
   }
 
+  private async buildReceipt(order: RepairOrder): Promise<{ blob: Blob; fileName: string }> {
+    const blob = await this.receiptService.generate(order, this.payments(), this.warranty());
+    return { blob, fileName: `Comprobante-${order.code}.pdf` };
+  }
+
   async generateReceipt(): Promise<void> {
     const order = this.order();
     if (!order || this.generatingReceipt()) {
@@ -1052,8 +1122,7 @@ export class OrderDetailComponent implements OnInit {
     }
     this.generatingReceipt.set(true);
     try {
-      const blob = this.receiptService.generate(order, this.payments(), this.warranty());
-      const fileName = `Comprobante-${order.code}.pdf`;
+      const { blob, fileName } = await this.buildReceipt(order);
 
       await this.attachmentsService.uploadBlob(this.orderId, blob, fileName, 'comprobante');
       this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
@@ -1073,14 +1142,58 @@ export class OrderDetailComponent implements OnInit {
     }
   }
 
-  async markQuoteSent(quoteId: string): Promise<void> {
-    this.quoteActionBusy.set(quoteId);
+  async sendReceiptWhatsApp(): Promise<void> {
+    const order = this.order();
+    if (!order || this.sendingReceipt()) {
+      return;
+    }
+    this.sendingReceipt.set(true);
     try {
-      await this.quotesService.markSent(quoteId);
-      await this.load();
-      this.toast.success('Presupuesto marcado como enviado.');
+      const { blob, fileName } = await this.buildReceipt(order);
+      const attachment = await this.attachmentsService.uploadBlob(this.orderId, blob, fileName, 'comprobante');
+      this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
+
+      const signedUrl = await this.attachmentsService.getSignedUrl(attachment.storagePath, 60 * 60 * 24 * 7);
+      const message = this.whatsappService.buildReceiptMessage(order, signedUrl);
+      const link = this.whatsappService.buildLink(order, message);
+      if (!link) {
+        this.toast.error('El teléfono del cliente no es válido para WhatsApp.');
+        return;
+      }
+
+      await this.whatsappService.logPrepared(order, 'comprobante_digital', message, true);
+      window.open(link, '_blank', 'noopener');
+      this.toast.success('Se generó el comprobante y se abrió WhatsApp con el enlace de descarga.');
     } catch {
-      this.toast.error('No se pudo actualizar el presupuesto.');
+      this.toast.error('No se pudo enviar el comprobante por WhatsApp.');
+    } finally {
+      this.sendingReceipt.set(false);
+    }
+  }
+
+  async sendQuoteWhatsApp(quote: Quote): Promise<void> {
+    const order = this.order();
+    if (!order) {
+      return;
+    }
+    const message = this.whatsappService.buildQuoteMessage(order, quote);
+    const link = this.whatsappService.buildLink(order, message);
+    if (!link) {
+      this.toast.error('El teléfono del cliente no es válido para WhatsApp.');
+      return;
+    }
+
+    this.quoteActionBusy.set(quote.id);
+    try {
+      if (!quote.sentAt) {
+        await this.quotesService.markSent(quote.id);
+      }
+      await this.whatsappService.logPrepared(order, 'presupuesto_listo', message, true);
+      window.open(link, '_blank', 'noopener');
+      await this.load();
+      this.toast.success('Se abrió WhatsApp con el detalle del presupuesto.');
+    } catch {
+      this.toast.error('No se pudo preparar el envío del presupuesto.');
     } finally {
       this.quoteActionBusy.set(null);
     }

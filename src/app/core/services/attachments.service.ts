@@ -93,9 +93,11 @@ export class AttachmentsService {
     return this.upload(repairOrderId, file, category);
   }
 
-  /** URL temporal (1 hora) para ver/descargar un adjunto de un bucket privado. */
-  async getSignedUrl(storagePath: string): Promise<string> {
-    const { data, error } = await this.supabase.client.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
+  /** URL temporal para ver/descargar un adjunto de un bucket privado (por defecto, 1 hora). */
+  async getSignedUrl(storagePath: string, expiresInSeconds = 3600): Promise<string> {
+    const { data, error } = await this.supabase.client.storage
+      .from(BUCKET)
+      .createSignedUrl(storagePath, expiresInSeconds);
     if (error) {
       throw new Error(error.message);
     }

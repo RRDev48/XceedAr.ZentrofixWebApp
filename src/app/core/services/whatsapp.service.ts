@@ -2,7 +2,15 @@ import { Injectable } from '@angular/core';
 import { SupabaseClientService } from './supabase-client.service';
 import { AuthService } from '../auth/auth.service';
 import { buildWhatsAppLink } from '../../shared/utils/phone.util';
-import { CommunicationTemplateType, REPAIR_STATUS_LABELS, RepairOrder } from '../../models';
+import { CommunicationTemplateType, Quote, REPAIR_STATUS_LABELS, RepairOrder } from '../../models';
+
+function formatCurrencyAR(value: number): string {
+  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function formatDateAR(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('es-AR');
+}
 
 const TEMPLATES: Record<CommunicationTemplateType, (o: RepairOrder) => string> = {
   confirmacion_recepcion: (o) =>
@@ -40,6 +48,45 @@ export class WhatsappService {
 
   buildMessage(order: RepairOrder, templateType: CommunicationTemplateType): string {
     return TEMPLATES[templateType](order);
+  }
+
+  /** Mensaje de presupuesto con el detalle real (ítems, mano de obra, descuento, total y vigencia). */
+  buildQuoteMessage(order: RepairOrder, quote: Quote): string {
+    const itemLines = quote.items
+      .map((i) => `• ${i.description} x${i.quantity}: ${formatCurrencyAR(i.quantity * i.unitPrice)}`)
+      .join('\n');
+
+    const parts: string[] = [
+      `Hola, ${order.customerName}. Somos Zentrofix. Tu presupuesto para ${order.deviceLabel} (orden ${order.code}) ya está listo:`,
+    ];
+    if (itemLines) {
+      parts.push(itemLines);
+    }
+    if (quote.laborCost > 0) {
+      parts.push(`Mano de obra: ${formatCurrencyAR(quote.laborCost)}`);
+    }
+    if (quote.discount > 0) {
+      parts.push(`Descuento: ${formatCurrencyAR(quote.discount)}`);
+    }
+    parts.push(`Total: ${formatCurrencyAR(quote.total)}`);
+    if (quote.validUntil) {
+      parts.push(`Válido hasta el ${formatDateAR(quote.validUntil)}.`);
+    }
+    if (quote.customerNotes) {
+      parts.push(quote.customerNotes);
+    }
+    parts.push('Ante cualquier consulta o para confirmarlo, respondé este mensaje.');
+
+    return parts.join('\n');
+  }
+
+  /** Mensaje con el enlace temporal de descarga del comprobante digital en PDF. */
+  buildReceiptMessage(order: RepairOrder, signedUrl: string): string {
+    return [
+      `Hola, ${order.customerName}. Somos Zentrofix. Te compartimos el comprobante digital de tu orden ${order.code}.`,
+      `Podés verlo o descargarlo acá: ${signedUrl}`,
+      'El enlace vence en algunos días. Ante cualquier consulta, respondé este mensaje.',
+    ].join('\n');
   }
 
   buildLink(order: RepairOrder, message: string): string | null {
