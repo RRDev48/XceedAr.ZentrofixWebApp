@@ -30,6 +30,7 @@ export interface Quote {
   respondedBy: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
   items: QuoteItem[];
 }
 

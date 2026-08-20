@@ -17,6 +17,7 @@ interface QuoteRow {
   responded_by: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 interface QuoteItemRow {
@@ -44,6 +45,7 @@ function mapQuote(row: QuoteRow, items: QuoteItemRow[]): Quote {
     respondedBy: row.responded_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
     items: items.map((i) => ({
       id: i.id,
       description: i.description,
@@ -59,11 +61,18 @@ export class QuotesService {
   constructor(private readonly supabase: SupabaseClientService) {}
 
   async listByOrder(repairOrderId: string): Promise<Quote[]> {
-    const { data: quotes, error } = await this.supabase.client
-      .from('quotes')
-      .select('*')
-      .eq('repair_order_id', repairOrderId)
-      .order('created_at', { ascending: false });
+    return this.listByOrderFiltered(repairOrderId, false);
+  }
+
+  /** Presupuestos eliminados (baja lógica) de una orden, para consultarlos como historial. */
+  async listDeletedByOrder(repairOrderId: string): Promise<Quote[]> {
+    return this.listByOrderFiltered(repairOrderId, true);
+  }
+
+  private async listByOrderFiltered(repairOrderId: string, deleted: boolean): Promise<Quote[]> {
+    let query = this.supabase.client.from('quotes').select('*').eq('repair_order_id', repairOrderId);
+    query = deleted ? query.not('deleted_at', 'is', null) : query.is('deleted_at', null);
+    const { data: quotes, error } = await query.order('created_at', { ascending: false });
     if (error) {
       throw new Error(error.message);
     }
@@ -90,6 +99,17 @@ export class QuotesService {
     }
 
     return rows.map((row) => mapQuote(row, itemsByQuote.get(row.id) ?? []));
+  }
+
+  /** Baja lógica: no borra el presupuesto, lo saca de la lista activa y lo deja como historial. */
+  async remove(quoteId: string): Promise<void> {
+    const { error } = await this.supabase.client
+      .from('quotes')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', quoteId);
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
   async save(repairOrderId: string, quoteId: string | null, value: QuoteFormValue): Promise<Quote> {

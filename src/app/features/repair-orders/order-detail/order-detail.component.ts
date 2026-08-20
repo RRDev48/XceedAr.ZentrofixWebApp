@@ -176,15 +176,25 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     <span>Total calculado: <strong>{{ calcTotal() | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
                   </div>
 
-                  <button type="button" class="zf-btn zf-btn--primary zf-btn--sm" (click)="applyCalcToPrice()">
-                    Usar como precio al cliente
+                  <button
+                    type="button"
+                    class="zf-btn zf-btn--primary zf-btn--sm"
+                    [disabled]="savingCalcQuote()"
+                    (click)="saveAndQuote()"
+                  >
+                    @if (savingCalcQuote()) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Guardar y presupuestar
                   </button>
+                  <span class="zf-hint calc-save-hint">Crea un presupuesto formal con estos ítems, visible más abajo.</span>
                 </div>
 
                 <div class="zf-grid-2">
                   <div class="zf-field">
-                    <label for="customerPrice">Precio al cliente</label>
+                    <label for="customerPrice">Precio al cliente (carga manual)</label>
                     <input id="customerPrice" type="number" min="0" step="0.01" class="zf-input" formControlName="customerPrice" />
+                    <span class="zf-hint">Para casos simples sin presupuesto formal por ítems.</span>
                   </div>
                   <div class="zf-field">
                     <label for="discount">Descuento</label>
@@ -207,9 +217,14 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               <div class="subsection">
                 <div class="section-header">
                   <h3>Presupuestos formales</h3>
-                  <a [routerLink]="['/ordenes', order()!.id, 'presupuestos', 'nuevo']" class="zf-btn zf-btn--ghost zf-btn--sm">
-                    + Nuevo
-                  </a>
+                  <div class="section-header__actions">
+                    <button type="button" class="zf-btn zf-btn--ghost zf-btn--sm" (click)="toggleQuoteHistory()">
+                      {{ showQuoteHistory() ? 'Ocultar historial' : 'Ver historial' }}
+                    </button>
+                    <a [routerLink]="['/ordenes', order()!.id, 'presupuestos', 'nuevo']" class="zf-btn zf-btn--ghost zf-btn--sm">
+                      + Nuevo
+                    </a>
+                  </div>
                 </div>
 
                 @if (quotes().length === 0) {
@@ -271,7 +286,41 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                               Registrar rechazo
                             </button>
                           }
+                          <button
+                            type="button"
+                            class="zf-btn zf-btn--danger zf-btn--sm"
+                            [disabled]="quoteActionBusy() === q.id"
+                            (click)="removeQuote(q)"
+                          >
+                            Eliminar
+                          </button>
                         </div>
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (showQuoteHistory()) {
+                  <div class="quote-history">
+                    <h4>Historial (eliminados)</h4>
+                    @if (loadingQuoteHistory()) {
+                      <p class="zf-hint">Cargando historial…</p>
+                    } @else if (deletedQuotes().length === 0) {
+                      <p class="zf-hint">No hay presupuestos eliminados para esta orden.</p>
+                    } @else {
+                      <div class="quote-list">
+                        @for (q of deletedQuotes(); track q.id) {
+                          <div class="quote-item quote-item--archived">
+                            <div class="quote-item__top">
+                              <span class="quote-item__total">{{ q.total | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</span>
+                              <span class="zf-badge zf-badge--muted">Eliminado</span>
+                            </div>
+                            <div class="quote-item__meta">
+                              {{ q.items.length }} ítem(s) · creado {{ q.createdAt | date: 'dd/MM/yyyy' }} · eliminado
+                              {{ q.deletedAt | date: 'dd/MM/yyyy HH:mm' }}
+                            </div>
+                          </div>
+                        }
                       </div>
                     }
                   </div>
@@ -767,6 +816,29 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         color: var(--zf-text);
       }
 
+      .calc-save-hint {
+        display: inline-block;
+        margin-left: 0.6rem;
+      }
+
+      .quote-item--archived {
+        opacity: 0.7;
+      }
+
+      .quote-history {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--zf-border-soft);
+      }
+
+      .quote-history h4 {
+        font-size: 0.8rem;
+        color: var(--zf-text-muted);
+        margin: 0 0 0.6rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
       .subsection h3 {
         font-size: 0.88rem;
         color: var(--zf-text);
@@ -1007,6 +1079,10 @@ export class OrderDetailComponent implements OnInit {
   protected readonly reingresos = signal<RepairOrder[]>([]);
   protected readonly history = signal<RepairStatusHistoryEntry[]>([]);
   protected readonly quotes = signal<Quote[]>([]);
+  protected readonly deletedQuotes = signal<Quote[]>([]);
+  protected readonly showQuoteHistory = signal(false);
+  protected readonly loadingQuoteHistory = signal(false);
+  protected readonly savingCalcQuote = signal(false);
   protected readonly quoteStatusLabels = QUOTE_APPROVAL_LABELS;
   protected readonly quoteActionBusy = signal<string | null>(null);
   protected readonly payments = signal<Payment[]>([]);
@@ -1080,10 +1156,85 @@ export class OrderDetailComponent implements OnInit {
     this.calcItems.update((items) => items.filter((_, i) => i !== index));
   }
 
-  applyCalcToPrice(): void {
-    const total = Math.round(this.calcTotal() * 100) / 100;
-    this.diagnosisForm.patchValue({ customerPrice: total });
-    this.toast.success('Precio al cliente actualizado con el total calculado. No olvides guardar los cambios.');
+  async saveAndQuote(): Promise<void> {
+    if (this.savingCalcQuote()) {
+      return;
+    }
+    const validItems = this.calcItems().filter((i) => i.description.trim() || Number(i.value) > 0);
+    if (validItems.length === 0) {
+      this.toast.error('Cargá al menos un ítem con descripción o valor.');
+      return;
+    }
+
+    const items = validItems.map((i) => ({
+      id: null,
+      description: i.description.trim() || 'Ítem sin descripción',
+      quantity: 1,
+      unitCost: Number(i.value) || 0,
+      unitPrice: Number(i.value) || 0,
+    }));
+    if (this.calcMarkupAmount() > 0) {
+      items.push({
+        id: null,
+        description: `Recargo (${this.calcMarkupPercent}%)`,
+        quantity: 1,
+        unitCost: 0,
+        unitPrice: Math.round(this.calcMarkupAmount() * 100) / 100,
+      });
+    }
+
+    this.savingCalcQuote.set(true);
+    try {
+      await this.quotesService.save(this.orderId, null, {
+        laborCost: 0,
+        discount: 0,
+        validUntil: null,
+        customerNotes: null,
+        items,
+      });
+      this.quotes.set(await this.quotesService.listByOrder(this.orderId));
+      this.calcItems.set([{ description: '', value: 0 }]);
+      this.calcMarkupPercent = 0;
+      this.toast.success('Presupuesto creado. Lo vas a ver en "Presupuestos formales", más abajo.');
+    } catch {
+      this.toast.error('No se pudo guardar el presupuesto.');
+    } finally {
+      this.savingCalcQuote.set(false);
+    }
+  }
+
+  async toggleQuoteHistory(): Promise<void> {
+    const next = !this.showQuoteHistory();
+    this.showQuoteHistory.set(next);
+    if (next && this.deletedQuotes().length === 0) {
+      this.loadingQuoteHistory.set(true);
+      try {
+        this.deletedQuotes.set(await this.quotesService.listDeletedByOrder(this.orderId));
+      } catch {
+        this.toast.error('No se pudo cargar el historial de presupuestos.');
+      } finally {
+        this.loadingQuoteHistory.set(false);
+      }
+    }
+  }
+
+  async removeQuote(quote: Quote): Promise<void> {
+    if (!window.confirm('¿Eliminar este presupuesto? Va a dejar de estar activo, pero queda como historial.')) {
+      return;
+    }
+    this.quoteActionBusy.set(quote.id);
+    try {
+      await this.quotesService.remove(quote.id);
+      this.quotes.set(await this.quotesService.listByOrder(this.orderId));
+      if (this.showQuoteHistory()) {
+        this.deletedQuotes.set(await this.quotesService.listDeletedByOrder(this.orderId));
+      }
+      this.toast.success('Presupuesto eliminado. Queda disponible en el historial.');
+    } catch {
+      this.toast.error('No se pudo eliminar el presupuesto.');
+    } finally {
+      this.quoteActionBusy.set(null);
+    }
   }
 
   /** Costos internos: nunca se comparten con el cliente ni se incluyen en el comprobante. */
