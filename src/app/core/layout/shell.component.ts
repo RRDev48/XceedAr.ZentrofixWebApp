@@ -33,6 +33,8 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
   template: `
     <div class="shell">
       <aside class="sidebar">
+        <div class="sidebar__glow"></div>
+
         <div class="brand">
           <img src="assets/branding/isotipo.png" alt="Zentrofix" class="brand__mark" />
           <div>
@@ -50,13 +52,23 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
           }
         </nav>
 
-        <a routerLink="/ordenes/nueva" class="zf-btn zf-btn--primary sidebar__cta">+ Nueva orden</a>
+        <div class="sidebar__bottom">
+          <a routerLink="/ordenes/nueva" class="zf-btn zf-btn--primary sidebar__cta">+ Nueva orden</a>
 
-        <div class="sidebar__user">
-          <div class="sidebar__user-name">{{ auth.profile()?.fullName ?? auth.session()?.user.email }}</div>
-          <button class="zf-btn zf-btn--ghost zf-btn--sm" (click)="logout()" [disabled]="loggingOut()">
-            Cerrar sesión
-          </button>
+          <div class="sidebar__user">
+            <span class="sidebar__avatar">{{ userInitials() }}</span>
+            <div class="sidebar__user-info">
+              <div class="sidebar__user-name">{{ auth.profile()?.fullName || auth.session()?.user.email }}</div>
+              <div class="sidebar__user-role">{{ auth.profile()?.role === 'admin' ? 'Administrador' : (auth.profile()?.role || '') }}</div>
+            </div>
+            <button class="sidebar__logout" (click)="logout()" [disabled]="loggingOut()" aria-label="Cerrar sesión" title="Cerrar sesión">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="M16 17l5-5-5-5" />
+                <path d="M21 12H9" />
+              </svg>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -362,6 +374,26 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
           position: sticky;
           top: 0;
           height: 100vh;
+          overflow: hidden;
+        }
+
+        .sidebar__glow {
+          position: absolute;
+          top: -80px;
+          left: -60px;
+          width: 260px;
+          height: 260px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(156, 44, 255, 0.28), rgba(30, 155, 255, 0.12) 55%, transparent 72%);
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .brand,
+        .sidebar__nav,
+        .sidebar__bottom {
+          position: relative;
+          z-index: 1;
         }
 
         .brand {
@@ -392,53 +424,113 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
         .sidebar__nav {
           display: flex;
           flex-direction: column;
-          gap: 0.2rem;
-          flex: 1;
+          gap: 0.25rem;
         }
 
         .sidebar__link {
           display: flex;
           align-items: center;
-          gap: 0.65rem;
-          padding: 0.7rem 0.75rem;
+          gap: 0.7rem;
+          padding: 0.65rem 0.75rem;
           border-radius: var(--zf-radius-sm);
-          color: rgba(255, 255, 255, 0.78);
+          color: var(--zf-text-muted);
           text-decoration: none;
-          font-size: 0.92rem;
+          font-size: 0.9rem;
           font-weight: 500;
+          transition: background 0.15s ease, color 0.15s ease;
         }
 
         .sidebar__link:hover {
-          background: rgba(255, 255, 255, 0.06);
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--zf-text-secondary);
         }
 
         .sidebar__link.is-active {
-          background: var(--zf-blue);
+          background: var(--zf-gradient);
           color: #fff;
+          font-weight: 600;
+          box-shadow: 0 4px 18px rgba(30, 155, 255, 0.28);
         }
 
         .sidebar__icon {
           width: 1.2rem;
           height: 1.2rem;
+          flex-shrink: 0;
+        }
+
+        .sidebar__bottom {
+          margin-top: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
         }
 
         .sidebar__cta {
-          margin: 1rem 0.35rem 1.25rem;
+          width: 100%;
         }
 
         .sidebar__user {
-          border-top: 1px solid rgba(255, 255, 255, 0.12);
-          padding-top: 1rem;
+          border-top: 1px solid var(--zf-border-soft);
+          padding-top: 0.85rem;
           display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-          padding: 1rem 0.35rem 0;
+          align-items: center;
+          gap: 0.6rem;
+        }
+
+        .sidebar__avatar {
+          width: 34px;
+          height: 34px;
+          min-width: 34px;
+          border-radius: 50%;
+          background: var(--zf-gradient);
+          color: #fff;
+          font-family: var(--zf-font-heading);
+          font-weight: 700;
+          font-size: 0.78rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .sidebar__user-info {
+          flex: 1;
+          min-width: 0;
         }
 
         .sidebar__user-name {
-          font-size: 0.85rem;
-          opacity: 0.85;
-          word-break: break-word;
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: var(--zf-text-secondary);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .sidebar__user-role {
+          font-size: 0.72rem;
+          color: var(--zf-text-muted);
+          text-transform: capitalize;
+        }
+
+        .sidebar__logout {
+          background: none;
+          border: none;
+          color: var(--zf-text-muted);
+          cursor: pointer;
+          padding: 0.4rem;
+          border-radius: var(--zf-radius-sm);
+          flex-shrink: 0;
+          display: flex;
+        }
+
+        .sidebar__logout svg {
+          width: 1.1rem;
+          height: 1.1rem;
+        }
+
+        .sidebar__logout:hover:not(:disabled) {
+          background: var(--zf-danger-soft);
+          color: var(--zf-danger);
         }
 
         .topbar {
@@ -461,6 +553,16 @@ export class ShellComponent {
   private readonly router = inject(Router);
   protected readonly loggingOut = signal(false);
   protected readonly mobileMenuOpen = signal(false);
+
+  protected readonly userInitials = computed(() => {
+    const name = this.auth.profile()?.fullName?.trim();
+    if (name) {
+      const parts = name.split(/\s+/).filter(Boolean);
+      return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || parts[0]!.slice(0, 2).toUpperCase();
+    }
+    const email = this.auth.session()?.user.email ?? '';
+    return email.slice(0, 2).toUpperCase() || 'ZF';
+  });
 
   constructor() {
     this.router.events.subscribe((event) => {
