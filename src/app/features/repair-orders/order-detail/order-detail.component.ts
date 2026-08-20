@@ -116,6 +116,71 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                   <textarea id="recommendedWork" class="zf-textarea" formControlName="recommendedWork"></textarea>
                 </div>
 
+                <div class="calc-box">
+                  <h3>Calculadora de presupuesto (opcional)</h3>
+                  <p class="zf-hint">
+                    Cargá el valor de cada repuesto o ítem si corresponde, indicá el porcentaje que le sumás y
+                    aplicá el total calculado como precio al cliente.
+                  </p>
+
+                  <div class="calc-items">
+                    @for (item of calcItems(); track $index) {
+                      <div class="calc-item-row">
+                        <input
+                          class="zf-input"
+                          [(ngModel)]="item.description"
+                          [ngModelOptions]="{ standalone: true }"
+                          placeholder="Ítem (ej. Módulo de pantalla)"
+                        />
+                        <input
+                          class="zf-input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          [(ngModel)]="item.value"
+                          [ngModelOptions]="{ standalone: true }"
+                          placeholder="Valor"
+                        />
+                        <button
+                          type="button"
+                          class="zf-btn zf-btn--ghost zf-btn--sm"
+                          [disabled]="calcItems().length <= 1"
+                          (click)="removeCalcItem($index)"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    }
+                  </div>
+
+                  <button type="button" class="zf-btn zf-btn--ghost zf-btn--sm calc-add-btn" (click)="addCalcItem()">
+                    + Agregar ítem
+                  </button>
+
+                  <div class="zf-field calc-percent-field">
+                    <label for="calcMarkup">% a sumar (recargo)</label>
+                    <input
+                      id="calcMarkup"
+                      class="zf-input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      [(ngModel)]="calcMarkupPercent"
+                      [ngModelOptions]="{ standalone: true }"
+                    />
+                  </div>
+
+                  <div class="calc-summary">
+                    <span>Subtotal ítems: <strong>{{ calcSubtotal() | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
+                    <span>Recargo ({{ calcMarkupPercent || 0 }}%): <strong>{{ calcMarkupAmount() | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
+                    <span>Total calculado: <strong>{{ calcTotal() | currency: 'ARS' : 'symbol-narrow' : '1.0-2' }}</strong></span>
+                  </div>
+
+                  <button type="button" class="zf-btn zf-btn--primary zf-btn--sm" (click)="applyCalcToPrice()">
+                    Usar como precio al cliente
+                  </button>
+                </div>
+
                 <div class="zf-grid-2">
                   <div class="zf-field">
                     <label for="customerPrice">Precio al cliente</label>
@@ -642,6 +707,66 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         border-top: 1px solid var(--zf-border-soft);
       }
 
+      .calc-box {
+        background: var(--zf-surface-2);
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius-sm);
+        padding: 1rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .calc-box h3 {
+        font-size: 0.85rem;
+        color: var(--zf-text);
+        margin: 0 0 0.3rem;
+      }
+
+      .calc-box .zf-hint {
+        margin-bottom: 0.85rem;
+      }
+
+      .calc-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.6rem;
+      }
+
+      .calc-item-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.4rem;
+      }
+
+      @media (min-width: 560px) {
+        .calc-item-row {
+          grid-template-columns: 2fr 1fr auto;
+          align-items: center;
+        }
+      }
+
+      .calc-add-btn {
+        margin-bottom: 1rem;
+      }
+
+      .calc-percent-field {
+        max-width: 200px;
+        margin-bottom: 1rem;
+      }
+
+      .calc-summary {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        font-size: 0.88rem;
+        color: var(--zf-text-secondary);
+        margin-bottom: 0.85rem;
+      }
+
+      .calc-summary strong {
+        color: var(--zf-text);
+      }
+
       .subsection h3 {
         font-size: 0.88rem;
         color: var(--zf-text);
@@ -931,6 +1056,35 @@ export class OrderDetailComponent implements OnInit {
     customerPrice: [0, [positiveAmountValidator()]],
     discount: [0, [positiveAmountValidator()]],
   });
+
+  protected readonly calcItems = signal<{ description: string; value: number }[]>([{ description: '', value: 0 }]);
+  protected calcMarkupPercent = 0;
+
+  calcSubtotal(): number {
+    return this.calcItems().reduce((sum, i) => sum + (Number(i.value) || 0), 0);
+  }
+
+  calcMarkupAmount(): number {
+    return (this.calcSubtotal() * (Number(this.calcMarkupPercent) || 0)) / 100;
+  }
+
+  calcTotal(): number {
+    return this.calcSubtotal() + this.calcMarkupAmount();
+  }
+
+  addCalcItem(): void {
+    this.calcItems.update((items) => [...items, { description: '', value: 0 }]);
+  }
+
+  removeCalcItem(index: number): void {
+    this.calcItems.update((items) => items.filter((_, i) => i !== index));
+  }
+
+  applyCalcToPrice(): void {
+    const total = Math.round(this.calcTotal() * 100) / 100;
+    this.diagnosisForm.patchValue({ customerPrice: total });
+    this.toast.success('Precio al cliente actualizado con el total calculado. No olvides guardar los cambios.');
+  }
 
   /** Costos internos: nunca se comparten con el cliente ni se incluyen en el comprobante. */
   protected readonly internalForm = this.fb.nonNullable.group({
