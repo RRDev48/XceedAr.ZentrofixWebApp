@@ -9,7 +9,8 @@ export type NavIconName =
   | 'reportes'
   | 'usuarios'
   | 'buscar'
-  | 'actividad';
+  | 'actividad'
+  | 'papelera';
 
 /** Set de íconos outline minimalista (acorde a la identidad Zentrofix) para la navegación. */
 @Component({
@@ -72,6 +73,13 @@ export type NavIconName =
         @case ('actividad') {
           <circle cx="12" cy="12" r="9" />
           <path d="M12 7v5l3.2 2" />
+        }
+        @case ('papelera') {
+          <path d="M4 7h16" />
+          <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+          <path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" />
+          <line x1="10" y1="11" x2="10" y2="17" />
+          <line x1="14" y1="11" x2="14" y2="17" />
         }
       }
     </svg>

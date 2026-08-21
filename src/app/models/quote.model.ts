@@ -13,6 +13,7 @@ export interface QuoteItem {
   quantity: number;
   unitCost: number;
   unitPrice: number;
+  inventoryItemId: string | null;
 }
 
 export interface Quote {

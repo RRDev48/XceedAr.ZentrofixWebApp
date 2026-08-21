@@ -136,4 +136,33 @@ export class CustomersService {
     }
     return mapCustomer(data as CustomerRow);
   }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await this.supabase.client
+      .from('customers')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async listDeleted(): Promise<Customer[]> {
+    const { data, error } = await this.supabase.client
+      .from('customers')
+      .select('*')
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data as CustomerRow[]).map(mapCustomer);
+  }
+
+  async restore(id: string): Promise<void> {
+    const { error } = await this.supabase.client.from('customers').update({ deleted_at: null }).eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
 }

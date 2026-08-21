@@ -83,6 +83,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 <th>Estado</th>
                 <th>Ingreso</th>
                 <th>Saldo</th>
+                <th>Cambiar estado</th>
                 <th></th>
               </tr>
             </thead>
@@ -100,6 +101,18 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                   </td>
                   <td>{{ o.receivedAt | date: 'dd/MM/yyyy' }}</td>
                   <td>{{ o.balanceDue | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}</td>
+                  <td>
+                    <select
+                      class="zf-select zf-select--sm"
+                      [value]="o.status"
+                      [disabled]="isUpdating(o.id)"
+                      (change)="onQuickStatusChange(o, $any($event.target).value)"
+                    >
+                      @for (s of statusOrder; track s) {
+                        <option [value]="s">{{ statusLabels[s] }}</option>
+                      }
+                    </select>
+                  </td>
                   <td><a [routerLink]="['/ordenes', o.id]" class="zf-btn zf-btn--ghost zf-btn--sm">Ver</a></td>
                 </tr>
               }
@@ -119,6 +132,17 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               @if (isStale(o)) {
                 <span class="zf-badge zf-badge--warning stale-badge">⏱ Estancada hace {{ daysInStatus(o) }} días</span>
               }
+              <select
+                class="zf-select zf-select--sm quick-status-mobile"
+                [value]="o.status"
+                [disabled]="isUpdating(o.id)"
+                (click)="$event.stopPropagation()"
+                (change)="onQuickStatusChange(o, $any($event.target).value)"
+              >
+                @for (s of statusOrder; track s) {
+                  <option [value]="s">{{ statusLabels[s] }}</option>
+                }
+              </select>
             </a>
           }
         </div>
@@ -155,6 +179,17 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
       .stale-badge {
         margin-left: 0.4rem;
+      }
+
+      .zf-select--sm {
+        padding: 0.35rem 0.5rem;
+        font-size: 0.8rem;
+        max-width: 180px;
+      }
+
+      .quick-status-mobile {
+        margin-top: 0.6rem;
+        width: 100%;
       }
 
       @media (min-width: 640px) {
@@ -210,6 +245,7 @@ export class OrderListComponent implements OnInit {
 
   protected readonly orders = signal<RepairOrder[]>([]);
   protected readonly daysInStatusMap = signal<Map<string, number>>(new Map());
+  protected readonly updatingIds = signal<Set<string>>(new Set());
   protected readonly loading = signal(true);
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
   protected readonly statusOrder = REPAIR_STATUS_ORDER;
@@ -227,14 +263,55 @@ export class OrderListComponent implements OnInit {
     this.onlyStale ? this.orders().filter((o) => this.isStale(o)) : this.orders(),
   );
 
+  private static readonly FILTERS_KEY = 'zf-order-filters';
+
   async ngOnInit(): Promise<void> {
-    this.onlyStale = this.route.snapshot.queryParamMap.get('estancadas') === '1';
+    if (this.route.snapshot.queryParamMap.get('estancadas') === '1') {
+      this.onlyStale = true;
+    } else {
+      this.loadSavedFilters();
+    }
     await this.load();
   }
 
   onFilterChange(): void {
+    this.saveFilters();
     clearTimeout(this.filterTimeout);
     this.filterTimeout = setTimeout(() => this.load(), 300);
+  }
+
+  private loadSavedFilters(): void {
+    try {
+      const raw = localStorage.getItem(OrderListComponent.FILTERS_KEY);
+      if (!raw) {
+        return;
+      }
+      const saved = JSON.parse(raw);
+      this.search = saved.search ?? '';
+      this.status = saved.status ?? 'todos';
+      this.paymentStatus = saved.paymentStatus ?? 'todos';
+      this.brand = saved.brand ?? '';
+      this.onlyStale = Boolean(saved.onlyStale);
+    } catch {
+      // Filtros guardados corruptos o inaccesibles: se ignoran y se usan los valores por defecto.
+    }
+  }
+
+  private saveFilters(): void {
+    try {
+      localStorage.setItem(
+        OrderListComponent.FILTERS_KEY,
+        JSON.stringify({
+          search: this.search,
+          status: this.status,
+          paymentStatus: this.paymentStatus,
+          brand: this.brand,
+          onlyStale: this.onlyStale,
+        }),
+      );
+    } catch {
+      // localStorage no disponible (modo privado, cuota excedida, etc.): se ignora.
+    }
   }
 
   protected isStale(order: RepairOrder): boolean {
@@ -243,6 +320,48 @@ export class OrderListComponent implements OnInit {
 
   protected daysInStatus(order: RepairOrder): number {
     return this.daysInStatusMap().get(order.id) ?? 0;
+  }
+
+  protected isUpdating(orderId: string): boolean {
+    return this.updatingIds().has(orderId);
+  }
+
+  async onQuickStatusChange(order: RepairOrder, newStatus: RepairStatus): Promise<void> {
+    if (newStatus === order.status || this.isUpdating(order.id)) {
+      return;
+    }
+    if (newStatus === 'entregado' && order.balanceDue > 0) {
+      const confirmed = window.confirm(
+        `Esta orden todavía tiene un saldo pendiente de ${new Intl.NumberFormat('es-AR', {
+          style: 'currency',
+          currency: 'ARS',
+        }).format(order.balanceDue)}. ¿Marcar como entregada de todas formas?`,
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    this.updatingIds.update((ids) => new Set(ids).add(order.id));
+    try {
+      const updated = await this.ordersService.changeStatus(order.id, newStatus, null);
+      this.orders.update((list) => list.map((o) => (o.id === updated.id ? updated : o)));
+      const days = await this.ordersService.getDaysInStatusMap([order.id]);
+      this.daysInStatusMap.update((map) => {
+        const next = new Map(map);
+        next.set(order.id, days.get(order.id) ?? 0);
+        return next;
+      });
+      this.toast.success(`${order.code}: estado actualizado a "${this.statusLabels[updated.status]}".`);
+    } catch {
+      this.toast.error('No se pudo actualizar el estado.');
+    } finally {
+      this.updatingIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(order.id);
+        return next;
+      });
+    }
   }
 
   private async load(): Promise<void> {

@@ -112,6 +112,35 @@ export class InventoryService {
     return mapItem(data as InventoryItemRow);
   }
 
+  async remove(id: string): Promise<void> {
+    const { error } = await this.supabase.client
+      .from('inventory_items')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async listDeleted(): Promise<InventoryItem[]> {
+    const { data, error } = await this.supabase.client
+      .from('inventory_items')
+      .select('*')
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data as InventoryItemRow[]).map(mapItem);
+  }
+
+  async restore(id: string): Promise<void> {
+    const { error } = await this.supabase.client.from('inventory_items').update({ deleted_at: null }).eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
   async listMovements(itemId: string): Promise<InventoryMovement[]> {
     const { data, error } = await this.supabase.client
       .from('inventory_movements')

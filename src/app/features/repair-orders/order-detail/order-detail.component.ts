@@ -10,12 +10,14 @@ import { WarrantiesService } from '../../../core/services/warranties.service';
 import { AttachmentsService } from '../../../core/services/attachments.service';
 import { ReceiptService } from '../../../core/services/receipt.service';
 import { ShortLinksService } from '../../../core/services/short-links.service';
+import { InventoryService } from '../../../core/services/inventory.service';
 import {
   Attachment,
   AttachmentCategory,
   ATTACHMENT_CATEGORY_LABELS,
   COMMUNICATION_TEMPLATE_LABELS,
   CommunicationTemplateType,
+  InventoryItem,
   Payment,
   PaymentMethod,
   PAYMENT_METHOD_LABELS,
@@ -155,30 +157,54 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
                   <div class="calc-items">
                     @for (item of calcItems(); track $index) {
-                      <div class="calc-item-row">
-                        <input
-                          class="zf-input"
-                          [(ngModel)]="item.description"
+                      <div class="calc-item-block">
+                        <select
+                          class="zf-select zf-select--sm"
+                          [ngModel]="item.inventoryItemId"
                           [ngModelOptions]="{ standalone: true }"
-                          placeholder="Ítem (ej. Módulo de pantalla)"
-                        />
-                        <input
-                          class="zf-input"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          [(ngModel)]="item.value"
-                          [ngModelOptions]="{ standalone: true }"
-                          placeholder="Valor"
-                        />
-                        <button
-                          type="button"
-                          class="zf-btn zf-btn--ghost zf-btn--sm"
-                          [disabled]="calcItems().length <= 1"
-                          (click)="removeCalcItem($index)"
+                          (ngModelChange)="onCalcItemInventorySelect($index, $event)"
                         >
-                          Quitar
-                        </button>
+                          <option [ngValue]="null">— Elegir repuesto del inventario (opcional) —</option>
+                          @for (inv of inventoryItems(); track inv.id) {
+                            <option [ngValue]="inv.id">
+                              {{ inv.name }} · stock {{ inv.stockQuantity }} · {{ inv.unitPrice | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}
+                            </option>
+                          }
+                        </select>
+                        <div class="calc-item-row">
+                          <input
+                            class="zf-input"
+                            [(ngModel)]="item.description"
+                            [ngModelOptions]="{ standalone: true }"
+                            placeholder="Ítem (ej. Módulo de pantalla)"
+                          />
+                          <input
+                            class="zf-input"
+                            type="number"
+                            min="1"
+                            step="1"
+                            [(ngModel)]="item.quantity"
+                            [ngModelOptions]="{ standalone: true }"
+                            placeholder="Cant."
+                          />
+                          <input
+                            class="zf-input"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            [(ngModel)]="item.unitPrice"
+                            [ngModelOptions]="{ standalone: true }"
+                            placeholder="Precio unit."
+                          />
+                          <button
+                            type="button"
+                            class="zf-btn zf-btn--ghost zf-btn--sm"
+                            [disabled]="calcItems().length <= 1"
+                            (click)="removeCalcItem($index)"
+                          >
+                            Quitar
+                          </button>
+                        </div>
                       </div>
                     }
                   </div>
@@ -886,8 +912,21 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
       .calc-items {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
+        gap: 0.75rem;
         margin-bottom: 0.6rem;
+      }
+
+      .calc-item-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px dashed var(--zf-border-soft);
+      }
+
+      .zf-select--sm {
+        padding: 0.4rem 0.55rem;
+        font-size: 0.82rem;
       }
 
       .calc-item-row {
@@ -898,7 +937,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
       @media (min-width: 560px) {
         .calc-item-row {
-          grid-template-columns: 2fr 1fr auto;
+          grid-template-columns: 2fr 0.6fr 1fr auto;
           align-items: center;
         }
       }
@@ -1312,6 +1351,7 @@ export class OrderDetailComponent implements OnInit {
   private readonly attachmentsService = inject(AttachmentsService);
   private readonly receiptService = inject(ReceiptService);
   private readonly shortLinksService = inject(ShortLinksService);
+  private readonly inventoryService = inject(InventoryService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
 
@@ -1394,11 +1434,14 @@ export class OrderDetailComponent implements OnInit {
     discount: [0, [positiveAmountValidator()]],
   });
 
-  protected readonly calcItems = signal<{ description: string; value: number }[]>([{ description: '', value: 0 }]);
+  protected readonly inventoryItems = signal<InventoryItem[]>([]);
+  protected readonly calcItems = signal<
+    { description: string; quantity: number; unitPrice: number; inventoryItemId: string | null }[]
+  >([{ description: '', quantity: 1, unitPrice: 0, inventoryItemId: null }]);
   protected calcMarkupPercent = 0;
 
   calcSubtotal(): number {
-    return this.calcItems().reduce((sum, i) => sum + (Number(i.value) || 0), 0);
+    return this.calcItems().reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unitPrice) || 0), 0);
   }
 
   calcMarkupAmount(): number {
@@ -1410,18 +1453,35 @@ export class OrderDetailComponent implements OnInit {
   }
 
   addCalcItem(): void {
-    this.calcItems.update((items) => [...items, { description: '', value: 0 }]);
+    this.calcItems.update((items) => [...items, { description: '', quantity: 1, unitPrice: 0, inventoryItemId: null }]);
   }
 
   removeCalcItem(index: number): void {
     this.calcItems.update((items) => items.filter((_, i) => i !== index));
   }
 
+  onCalcItemInventorySelect(index: number, inventoryItemId: string): void {
+    const inventoryItem = this.inventoryItems().find((i) => i.id === inventoryItemId);
+    this.calcItems.update((items) =>
+      items.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              description: inventoryItem?.name ?? item.description,
+              unitPrice: inventoryItem?.unitPrice ?? item.unitPrice,
+              inventoryItemId: inventoryItem?.id ?? null,
+              quantity: item.quantity > 0 ? item.quantity : 1,
+            }
+          : item,
+      ),
+    );
+  }
+
   async saveAndQuote(): Promise<void> {
     if (this.savingCalcQuote()) {
       return;
     }
-    const validItems = this.calcItems().filter((i) => i.description.trim() || Number(i.value) > 0);
+    const validItems = this.calcItems().filter((i) => i.description.trim() || Number(i.unitPrice) > 0);
     if (validItems.length === 0) {
       this.toast.error('Cargá al menos un ítem con descripción o valor.');
       return;
@@ -1430,9 +1490,10 @@ export class OrderDetailComponent implements OnInit {
     const items = validItems.map((i) => ({
       id: null,
       description: i.description.trim() || 'Ítem sin descripción',
-      quantity: 1,
-      unitCost: Number(i.value) || 0,
-      unitPrice: Number(i.value) || 0,
+      quantity: Number(i.quantity) || 1,
+      unitCost: Number(i.unitPrice) || 0,
+      unitPrice: Number(i.unitPrice) || 0,
+      inventoryItemId: i.inventoryItemId,
     }));
     if (this.calcMarkupAmount() > 0) {
       items.push({
@@ -1441,6 +1502,7 @@ export class OrderDetailComponent implements OnInit {
         quantity: 1,
         unitCost: 0,
         unitPrice: Math.round(this.calcMarkupAmount() * 100) / 100,
+        inventoryItemId: null,
       });
     }
 
@@ -1454,7 +1516,7 @@ export class OrderDetailComponent implements OnInit {
         items,
       });
       this.quotes.set(await this.quotesService.listByOrder(this.orderId));
-      this.calcItems.set([{ description: '', value: 0 }]);
+      this.calcItems.set([{ description: '', quantity: 1, unitPrice: 0, inventoryItemId: null }]);
       this.calcMarkupPercent = 0;
       this.toast.success('Presupuesto creado. Lo vas a ver en "Presupuestos formales", más abajo.');
     } catch {
@@ -1515,13 +1577,14 @@ export class OrderDetailComponent implements OnInit {
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const [order, history, quotes, payments, warranty, attachments] = await Promise.all([
+      const [order, history, quotes, payments, warranty, attachments, inventoryItems] = await Promise.all([
         this.ordersService.getById(this.orderId),
         this.ordersService.getStatusHistory(this.orderId),
         this.quotesService.listByOrder(this.orderId),
         this.paymentsService.listByOrder(this.orderId),
         this.warrantiesService.getByOrder(this.orderId),
         this.attachmentsService.listByOrder(this.orderId),
+        this.inventoryService.list(),
       ]);
       this.order.set(order);
       this.history.set(history);
@@ -1529,6 +1592,7 @@ export class OrderDetailComponent implements OnInit {
       this.payments.set(payments);
       this.warranty.set(warranty);
       this.attachments.set(attachments);
+      this.inventoryItems.set(inventoryItems);
       if (order) {
         this.newStatus = order.status;
         this.paymentStatus.set(this.ordersService.paymentStatusOf(order));

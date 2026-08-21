@@ -27,6 +27,7 @@ interface QuoteItemRow {
   quantity: number;
   unit_cost: number;
   unit_price: number;
+  inventory_item_id: string | null;
 }
 
 function mapQuote(row: QuoteRow, items: QuoteItemRow[]): Quote {
@@ -52,6 +53,7 @@ function mapQuote(row: QuoteRow, items: QuoteItemRow[]): Quote {
       quantity: Number(i.quantity),
       unitCost: Number(i.unit_cost),
       unitPrice: Number(i.unit_price),
+      inventoryItemId: i.inventory_item_id,
     })),
   };
 }
@@ -125,6 +127,7 @@ export class QuotesService {
         quantity: i.quantity,
         unitCost: i.unitCost,
         unitPrice: i.unitPrice,
+        inventoryItemId: i.inventoryItemId,
       })),
     });
     if (error) {

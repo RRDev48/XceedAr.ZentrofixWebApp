@@ -19,6 +19,7 @@ const SIDEBAR_NAV_ITEMS: NavItem[] = [
   { path: '/caja', label: 'Caja', icon: 'caja', adminOnly: true },
   { path: '/reportes', label: 'Reportes', icon: 'reportes', adminOnly: true },
   { path: '/actividad', label: 'Actividad', icon: 'actividad', adminOnly: true },
+  { path: '/papelera', label: 'Papelera', icon: 'papelera', adminOnly: true },
   { path: '/configuracion/usuarios', label: 'Usuarios', icon: 'usuarios', adminOnly: true },
 ];
 

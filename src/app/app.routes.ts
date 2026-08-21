@@ -180,6 +180,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/audit/audit-log.component').then((m) => m.AuditLogComponent),
         title: 'Actividad reciente — Zentrofix',
       },
+      {
+        path: 'papelera',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./features/trash/trash.component').then((m) => m.TrashComponent),
+        title: 'Papelera — Zentrofix',
+      },
     ],
   },
   { path: '**', redirectTo: 'panel' },

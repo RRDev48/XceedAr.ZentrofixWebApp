@@ -85,6 +85,16 @@ import { CanComponentDeactivate } from '../../core/guards/unsaved-changes.guard'
           </div>
 
           <div class="form-actions">
+            @if (isEdit()) {
+              <button
+                type="button"
+                class="zf-btn zf-btn--ghost zf-btn--danger form-actions__delete"
+                [disabled]="deleting()"
+                (click)="deleteDevice()"
+              >
+                Eliminar equipo
+              </button>
+            }
             <a [routerLink]="cancelLink" class="zf-btn zf-btn--ghost">Cancelar</a>
             <button type="submit" class="zf-btn zf-btn--primary" [disabled]="saving()">
               @if (saving()) {
@@ -109,6 +119,10 @@ import { CanComponentDeactivate } from '../../core/guards/unsaved-changes.guard'
         gap: 0.75rem;
         margin-top: 0.5rem;
       }
+
+      .form-actions__delete {
+        margin-right: auto;
+      }
     `,
   ],
 })
@@ -126,6 +140,7 @@ export class DeviceFormComponent implements OnInit, CanComponentDeactivate {
   protected readonly saving = signal(false);
   protected readonly loadingRecord = signal(false);
   protected readonly isEdit = signal(false);
+  protected readonly deleting = signal(false);
   protected cancelLink: string[] = ['/clientes'];
 
   private deviceId: string | null = null;
@@ -223,6 +238,27 @@ export class DeviceFormComponent implements OnInit, CanComponentDeactivate {
       this.toast.error('No se pudo guardar el equipo. Intentá nuevamente.');
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  async deleteDevice(): Promise<void> {
+    if (!this.deviceId || this.deleting()) {
+      return;
+    }
+    const confirmed = window.confirm('¿Eliminar este equipo? Vas a poder restaurarlo luego desde Papelera.');
+    if (!confirmed) {
+      return;
+    }
+    this.deleting.set(true);
+    try {
+      await this.devicesService.remove(this.deviceId);
+      this.savedSuccessfully = true;
+      this.toast.success('Equipo eliminado.');
+      await this.router.navigate(['/clientes', this.customerId]);
+    } catch {
+      this.toast.error('No se pudo eliminar el equipo.');
+    } finally {
+      this.deleting.set(false);
     }
   }
 }

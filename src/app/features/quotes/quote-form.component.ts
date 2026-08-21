@@ -266,6 +266,7 @@ export class QuoteFormComponent implements OnInit, CanComponentDeactivate {
           quantity: Number(i.quantity) || 0,
           unitCost: Number(i.unitCost) || 0,
           unitPrice: Number(i.unitPrice) || 0,
+          inventoryItemId: null,
         })),
       });
       this.savedSuccessfully = true;

@@ -1,5 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { CustomersService } from '../../../core/services/customers.service';
 import { DevicesService } from '../../../core/services/devices.service';
@@ -23,7 +23,17 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <h1>{{ customer()!.firstName }} {{ customer()!.lastName }}</h1>
             <p class="zf-subtitle">Cliente desde {{ customer()!.createdAt | date: 'dd/MM/yyyy' }}</p>
           </div>
-          <a [routerLink]="['/clientes', customer()!.id, 'editar']" class="zf-btn zf-btn--ghost">Editar</a>
+          <div class="header-actions">
+            <a [routerLink]="['/clientes', customer()!.id, 'editar']" class="zf-btn zf-btn--ghost">Editar</a>
+            <button
+              type="button"
+              class="zf-btn zf-btn--ghost zf-btn--danger"
+              [disabled]="deleting()"
+              (click)="deleteCustomer()"
+            >
+              Eliminar
+            </button>
+          </div>
         </div>
 
         <div class="lifetime-stats">
@@ -104,6 +114,11 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         color: var(--zf-text-muted);
         margin: 0;
         font-size: 0.9rem;
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 0.5rem;
       }
 
       .lifetime-stats {
@@ -193,6 +208,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 })
 export class CustomerDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly customersService = inject(CustomersService);
   private readonly devicesService = inject(DevicesService);
   private readonly ordersService = inject(RepairOrdersService);
@@ -202,6 +218,7 @@ export class CustomerDetailComponent implements OnInit {
   protected readonly devices = signal<Device[]>([]);
   protected readonly orders = signal<RepairOrder[]>([]);
   protected readonly loading = signal(true);
+  protected readonly deleting = signal(false);
   protected readonly deviceTypeLabels = DEVICE_TYPE_LABELS;
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
 
@@ -229,6 +246,29 @@ export class CustomerDetailComponent implements OnInit {
       this.toast.error('No se pudo cargar la información del cliente.');
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async deleteCustomer(): Promise<void> {
+    const customer = this.customer();
+    if (!customer || this.deleting()) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `¿Eliminar a ${customer.firstName} ${customer.lastName}? Vas a poder restaurarlo luego desde Papelera.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    this.deleting.set(true);
+    try {
+      await this.customersService.remove(customer.id);
+      this.toast.success('Cliente eliminado.');
+      await this.router.navigate(['/clientes']);
+    } catch {
+      this.toast.error('No se pudo eliminar el cliente.');
+    } finally {
+      this.deleting.set(false);
     }
   }
 }

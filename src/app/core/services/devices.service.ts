@@ -98,4 +98,33 @@ export class DevicesService {
     }
     return mapDevice(data as DeviceRow);
   }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await this.supabase.client
+      .from('devices')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async listDeleted(): Promise<Device[]> {
+    const { data, error } = await this.supabase.client
+      .from('devices')
+      .select('*')
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data as DeviceRow[]).map(mapDevice);
+  }
+
+  async restore(id: string): Promise<void> {
+    const { error } = await this.supabase.client.from('devices').update({ deleted_at: null }).eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
 }

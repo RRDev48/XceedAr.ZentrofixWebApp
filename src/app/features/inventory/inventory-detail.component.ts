@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { InventoryService } from '../../core/services/inventory.service';
 import { INVENTORY_MOVEMENT_LABELS, InventoryItem, InventoryMovement, InventoryMovementType } from '../../models';
 import { ToastService } from '../../shared/components/toast/toast.service';
@@ -22,7 +22,17 @@ import { ToastService } from '../../shared/components/toast/toast.service';
             <h1>{{ item()!.name }}</h1>
             <p class="zf-subtitle">{{ item()!.sku || 'sin SKU' }}</p>
           </div>
-          <a [routerLink]="['/inventario', item()!.id, 'editar']" class="zf-btn zf-btn--ghost">Editar</a>
+          <div class="header-actions">
+            <a [routerLink]="['/inventario', item()!.id, 'editar']" class="zf-btn zf-btn--ghost">Editar</a>
+            <button
+              type="button"
+              class="zf-btn zf-btn--ghost zf-btn--danger"
+              [disabled]="deleting()"
+              (click)="deleteItem()"
+            >
+              Eliminar
+            </button>
+          </div>
         </div>
 
         <div class="stat-row">
@@ -93,6 +103,11 @@ import { ToastService } from '../../shared/components/toast/toast.service';
         color: var(--zf-text-muted);
         margin: 0;
         font-size: 0.9rem;
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 0.5rem;
       }
 
       .stat-row {
@@ -191,6 +206,7 @@ import { ToastService } from '../../shared/components/toast/toast.service';
 })
 export class InventoryDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly inventoryService = inject(InventoryService);
   private readonly toast = inject(ToastService);
 
@@ -198,6 +214,7 @@ export class InventoryDetailComponent implements OnInit {
   protected readonly movements = signal<InventoryMovement[]>([]);
   protected readonly loading = signal(true);
   protected readonly registering = signal(false);
+  protected readonly deleting = signal(false);
   protected readonly movementLabels = INVENTORY_MOVEMENT_LABELS;
   protected readonly movementTypes: InventoryMovementType[] = ['ingreso', 'egreso', 'ajuste'];
 
@@ -244,6 +261,26 @@ export class InventoryDetailComponent implements OnInit {
       this.toast.error('No se pudo registrar el movimiento.');
     } finally {
       this.registering.set(false);
+    }
+  }
+
+  async deleteItem(): Promise<void> {
+    if (this.deleting()) {
+      return;
+    }
+    const confirmed = window.confirm('¿Eliminar este ítem de inventario? Vas a poder restaurarlo luego desde Papelera.');
+    if (!confirmed) {
+      return;
+    }
+    this.deleting.set(true);
+    try {
+      await this.inventoryService.remove(this.itemId);
+      this.toast.success('Ítem eliminado.');
+      await this.router.navigate(['/inventario']);
+    } catch {
+      this.toast.error('No se pudo eliminar el ítem.');
+    } finally {
+      this.deleting.set(false);
     }
   }
 }
