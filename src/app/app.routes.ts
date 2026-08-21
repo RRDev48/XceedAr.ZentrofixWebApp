@@ -174,6 +174,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/settings/users.component').then((m) => m.UsersComponent),
         title: 'Usuarios — Zentrofix',
       },
+      {
+        path: 'actividad',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./features/audit/audit-log.component').then((m) => m.AuditLogComponent),
+        title: 'Actividad reciente — Zentrofix',
+      },
     ],
   },
   { path: '**', redirectTo: 'panel' },

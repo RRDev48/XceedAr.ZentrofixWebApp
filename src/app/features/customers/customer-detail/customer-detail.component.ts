@@ -1,6 +1,6 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import { CustomersService } from '../../../core/services/customers.service';
 import { DevicesService } from '../../../core/services/devices.service';
 import { RepairOrdersService } from '../../../core/services/repair-orders.service';
@@ -10,7 +10,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 @Component({
   selector: 'app-customer-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, CurrencyPipe],
   template: `
     <div class="zf-page">
       @if (loading()) {
@@ -24,6 +24,17 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <p class="zf-subtitle">Cliente desde {{ customer()!.createdAt | date: 'dd/MM/yyyy' }}</p>
           </div>
           <a [routerLink]="['/clientes', customer()!.id, 'editar']" class="zf-btn zf-btn--ghost">Editar</a>
+        </div>
+
+        <div class="lifetime-stats">
+          <div class="lifetime-stat">
+            <div class="lifetime-stat__value">{{ totalRepairs() }}</div>
+            <div class="lifetime-stat__label">Reparaciones</div>
+          </div>
+          <div class="lifetime-stat">
+            <div class="lifetime-stat__value">{{ totalSpent() | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}</div>
+            <div class="lifetime-stat__label">Total gastado</div>
+          </div>
         </div>
 
         <div class="zf-card info-card">
@@ -95,6 +106,35 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         font-size: 0.9rem;
       }
 
+      .lifetime-stats {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .lifetime-stat {
+        flex: 1;
+        background: var(--zf-surface);
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius-sm);
+        padding: 0.85rem 1rem;
+        box-shadow: var(--zf-shadow);
+      }
+
+      .lifetime-stat__value {
+        font-family: var(--zf-font-heading);
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--zf-text);
+      }
+
+      .lifetime-stat__label {
+        font-size: 0.78rem;
+        color: var(--zf-text-muted);
+        font-weight: 600;
+        margin-top: 0.15rem;
+      }
+
       .info-card {
         margin-bottom: 1.5rem;
         display: flex;
@@ -164,6 +204,11 @@ export class CustomerDetailComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly deviceTypeLabels = DEVICE_TYPE_LABELS;
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
+
+  protected readonly totalRepairs = computed(() => this.orders().length);
+  protected readonly totalSpent = computed(() =>
+    this.orders().reduce((sum, o) => sum + Math.max(0, o.total - o.balanceDue), 0),
+  );
 
   async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');

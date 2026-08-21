@@ -1,5 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { SupabaseClientService } from './supabase-client.service';
+import { RepairOrdersService } from './repair-orders.service';
+import { WarrantiesService } from './warranties.service';
+import { CashService } from './cash.service';
 
 export interface DashboardIndicators {
   pendingDiagnosis: number;
@@ -12,10 +15,20 @@ export interface DashboardIndicators {
   incomeCollected: number;
   activeWarranties: number;
   criticalStock: number;
+  staleOrders: number;
+  expiringWarranties: number;
+  incomeThisMonth: number;
+  incomeLastMonth: number;
+  ordersThisMonth: number;
+  ordersLastMonth: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
+  private readonly ordersService = inject(RepairOrdersService);
+  private readonly warrantiesService = inject(WarrantiesService);
+  private readonly cashService = inject(CashService);
+
   constructor(private readonly supabase: SupabaseClientService) {}
 
   async getIndicators(): Promise<DashboardIndicators> {
@@ -31,6 +44,8 @@ export class DashboardService {
       incomeRows,
       activeWarranties,
       criticalStock,
+      staleOrders,
+      expiringWarranties,
     ] = await Promise.all([
       this.countByStatus('pendiente_diagnostico'),
       this.countByStatus('en_diagnostico'),
@@ -53,7 +68,29 @@ export class DashboardService {
         .from('inventory_items')
         .select('id, stock_quantity, minimum_stock')
         .is('deleted_at', null),
+      this.ordersService.listStale(),
+      this.warrantiesService.listExpiringSoon(15),
     ]);
+
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [movements, ordersThisMonth, ordersLastMonth] = await Promise.all([
+      this.cashService.listBetween(lastMonthStart.toISOString(), now.toISOString()),
+      this.countOrdersBetween(thisMonthStart.toISOString(), now.toISOString()),
+      this.countOrdersBetween(lastMonthStart.toISOString(), thisMonthStart.toISOString()),
+    ]);
+
+    const incomeThisMonth = movements
+      .filter((m) => m.movementType === 'ingreso' && new Date(m.createdAt) >= thisMonthStart)
+      .reduce((sum, m) => sum + m.amount, 0);
+    const incomeLastMonth = movements
+      .filter(
+        (m) =>
+          m.movementType === 'ingreso' && new Date(m.createdAt) >= lastMonthStart && new Date(m.createdAt) < thisMonthStart,
+      )
+      .reduce((sum, m) => sum + m.amount, 0);
 
     const incomeCollected = (incomeRows.data ?? []).reduce((sum: number, row: any) => {
       const collected = Number(row.total) - Number(row.balance_due);
@@ -75,6 +112,12 @@ export class DashboardService {
       incomeCollected,
       activeWarranties: activeWarranties.count ?? 0,
       criticalStock: criticalStockCount,
+      staleOrders: staleOrders.length,
+      expiringWarranties: expiringWarranties.length,
+      incomeThisMonth,
+      incomeLastMonth,
+      ordersThisMonth,
+      ordersLastMonth,
     };
   }
 
@@ -84,6 +127,19 @@ export class DashboardService {
       .select('id', { count: 'exact', head: true })
       .is('deleted_at', null)
       .eq('status', status);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return count ?? 0;
+  }
+
+  private async countOrdersBetween(fromIso: string, toIso: string): Promise<number> {
+    const { count, error } = await this.supabase.client
+      .from('repair_orders_list')
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null)
+      .gte('received_at', fromIso)
+      .lt('received_at', toIso);
     if (error) {
       throw new Error(error.message);
     }

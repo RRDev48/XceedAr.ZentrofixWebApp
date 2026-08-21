@@ -2,6 +2,15 @@ import { Injectable } from '@angular/core';
 import { SupabaseClientService } from './supabase-client.service';
 import { Warranty } from '../../models';
 
+export interface ExpiringWarranty {
+  warranty: Warranty;
+  orderId: string;
+  orderCode: string;
+  customerName: string;
+  deviceLabel: string;
+  daysLeft: number;
+}
+
 interface WarrantyRow {
   id: string;
   repair_order_id: string;
@@ -64,5 +73,52 @@ export class WarrantiesService {
       throw new Error(error.message);
     }
     return mapWarranty(data as WarrantyRow);
+  }
+
+  /** Garantías activas que vencen dentro de los próximos `days` días (incluye vencidas hoy). */
+  async listExpiringSoon(days = 15): Promise<ExpiringWarranty[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + days);
+
+    const { data, error } = await this.supabase.client
+      .from('warranties')
+      .select('*')
+      .eq('active', true)
+      .gte('expires_at', today.toISOString().slice(0, 10))
+      .lte('expires_at', limit.toISOString().slice(0, 10))
+      .order('expires_at', { ascending: true });
+    if (error) {
+      throw new Error(error.message);
+    }
+    const warranties = (data as WarrantyRow[]).map(mapWarranty);
+    if (!warranties.length) {
+      return [];
+    }
+
+    const orderIds = warranties.map((w) => w.repairOrderId);
+    const { data: orders, error: ordersError } = await this.supabase.client
+      .from('repair_orders_list')
+      .select('id, code, customer_name, device_brand, device_model')
+      .in('id', orderIds);
+    if (ordersError) {
+      throw new Error(ordersError.message);
+    }
+    const orderById = new Map((orders ?? []).map((o: any) => [o.id, o]));
+    const now = today.getTime();
+
+    return warranties.map((w) => {
+      const order = orderById.get(w.repairOrderId);
+      const daysLeft = Math.ceil((new Date(w.expiresAt).getTime() - now) / 86_400_000);
+      return {
+        warranty: w,
+        orderId: w.repairOrderId,
+        orderCode: order?.code ?? '—',
+        customerName: order?.customer_name ?? '—',
+        deviceLabel: order ? `${order.device_brand} ${order.device_model}`.trim() : '—',
+        daysLeft,
+      };
+    });
   }
 }

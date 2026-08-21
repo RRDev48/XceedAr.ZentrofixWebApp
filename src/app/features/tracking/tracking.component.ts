@@ -61,6 +61,41 @@ import { REPAIR_STATUS_LABELS } from '../../models';
               </div>
             }
           </div>
+
+          @if (result()!.status === 'entregado' && !result()!.hasFeedback && !feedbackSent()) {
+            <div class="feedback-box">
+              <p class="feedback-box__title">¿Cómo fue tu experiencia con la reparación?</p>
+              <div class="feedback-stars">
+                @for (n of [1, 2, 3, 4, 5]; track n) {
+                  <button
+                    type="button"
+                    class="feedback-star"
+                    [class.feedback-star--active]="n <= rating()"
+                    (click)="rating.set(n)"
+                    [attr.aria-label]="'Calificar con ' + n"
+                  >
+                    ★
+                  </button>
+                }
+              </div>
+              <textarea
+                class="zf-input feedback-comment"
+                rows="2"
+                placeholder="Contanos algo más (opcional)"
+                [(ngModel)]="feedbackComment"
+              ></textarea>
+              <button
+                type="button"
+                class="zf-btn zf-btn--primary feedback-submit"
+                [disabled]="rating() === 0 || sendingFeedback()"
+                (click)="sendFeedback()"
+              >
+                Enviar opinión
+              </button>
+            </div>
+          } @else if (feedbackSent() || result()!.hasFeedback) {
+            <div class="feedback-thanks">¡Gracias por contarnos tu experiencia!</div>
+          }
         }
       </div>
     </div>
@@ -148,6 +183,58 @@ import { REPAIR_STATUS_LABELS } from '../../models';
         color: var(--zf-text-secondary);
         padding: 0.3rem 0;
       }
+
+      .feedback-box {
+        margin-top: 1rem;
+        background: var(--zf-surface-2);
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius-sm);
+        padding: 1rem;
+        text-align: left;
+      }
+
+      .feedback-box__title {
+        font-size: 0.85rem;
+        color: var(--zf-text-secondary);
+        margin: 0 0 0.6rem;
+      }
+
+      .feedback-stars {
+        display: flex;
+        gap: 0.3rem;
+        margin-bottom: 0.7rem;
+      }
+
+      .feedback-star {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1.5rem;
+        line-height: 1;
+        color: var(--zf-border-soft);
+        padding: 0;
+      }
+
+      .feedback-star--active {
+        color: var(--zf-blue);
+      }
+
+      .feedback-comment {
+        width: 100%;
+        resize: none;
+        margin-bottom: 0.7rem;
+      }
+
+      .feedback-submit {
+        width: 100%;
+      }
+
+      .feedback-thanks {
+        margin-top: 1rem;
+        text-align: center;
+        font-size: 0.85rem;
+        color: var(--zf-text-muted);
+      }
     `,
   ],
 })
@@ -158,9 +245,13 @@ export class TrackingComponent {
   protected readonly loading = signal(false);
   protected readonly searched = signal(false);
   protected readonly result = signal<PublicOrderTracking | null>(null);
+  protected readonly rating = signal(0);
+  protected readonly sendingFeedback = signal(false);
+  protected readonly feedbackSent = signal(false);
 
   protected code = '';
   protected phone = '';
+  protected feedbackComment = '';
 
   async search(): Promise<void> {
     if (this.loading() || !this.code.trim() || !this.phone.trim()) {
@@ -168,6 +259,9 @@ export class TrackingComponent {
     }
     this.loading.set(true);
     this.searched.set(false);
+    this.rating.set(0);
+    this.feedbackComment = '';
+    this.feedbackSent.set(false);
     try {
       const result = await this.trackingService.track(this.code, this.phone);
       this.result.set(result);
@@ -177,6 +271,21 @@ export class TrackingComponent {
       this.searched.set(true);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async sendFeedback(): Promise<void> {
+    if (this.rating() === 0 || this.sendingFeedback()) {
+      return;
+    }
+    this.sendingFeedback.set(true);
+    try {
+      const ok = await this.trackingService.submitFeedback(this.code, this.phone, this.rating(), this.feedbackComment);
+      if (ok) {
+        this.feedbackSent.set(true);
+      }
+    } finally {
+      this.sendingFeedback.set(false);
     }
   }
 }

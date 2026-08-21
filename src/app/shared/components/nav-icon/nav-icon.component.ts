@@ -1,6 +1,15 @@
 import { Component, input } from '@angular/core';
 
-export type NavIconName = 'panel' | 'ordenes' | 'clientes' | 'inventario' | 'caja' | 'reportes' | 'usuarios';
+export type NavIconName =
+  | 'panel'
+  | 'ordenes'
+  | 'clientes'
+  | 'inventario'
+  | 'caja'
+  | 'reportes'
+  | 'usuarios'
+  | 'buscar'
+  | 'actividad';
 
 /** Set de íconos outline minimalista (acorde a la identidad Zentrofix) para la navegación. */
 @Component({
@@ -55,6 +64,14 @@ export type NavIconName = 'panel' | 'ordenes' | 'clientes' | 'inventario' | 'caj
         @case ('usuarios') {
           <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" />
           <path d="M9 12.3l2 2 4-4" />
+        }
+        @case ('buscar') {
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <line x1="20" y1="20" x2="15.3" y2="15.3" />
+        }
+        @case ('actividad') {
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3.2 2" />
         }
       }
     </svg>

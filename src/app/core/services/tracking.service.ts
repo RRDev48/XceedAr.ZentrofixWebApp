@@ -14,6 +14,7 @@ export interface PublicOrderTracking {
   total: number;
   balanceDue: number;
   customerFirstName: string;
+  hasFeedback: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -44,6 +45,21 @@ export class TrackingService {
       total: Number(row.total),
       balanceDue: Number(row.balance_due),
       customerFirstName: row.customer_first_name,
+      hasFeedback: Boolean(row.has_feedback),
     };
+  }
+
+  /** Devuelve true si se guardó la calificación (código + teléfono válidos y orden entregada). */
+  async submitFeedback(code: string, phone: string, rating: number, comment: string | null): Promise<boolean> {
+    const { data, error } = await this.supabase.client.rpc('submit_order_feedback', {
+      p_code: code,
+      p_phone: phone,
+      p_rating: rating,
+      p_comment: comment?.trim() || null,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return Boolean(data);
   }
 }

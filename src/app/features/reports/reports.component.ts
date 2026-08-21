@@ -1,7 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { CashService } from '../../core/services/cash.service';
 import { RepairOrdersService } from '../../core/services/repair-orders.service';
+import { FeedbackEntry, FeedbackStats, OrderFeedbackService } from '../../core/services/order-feedback.service';
 import { REPAIR_STATUS_LABELS, REPAIR_STATUS_ORDER, RepairStatus } from '../../models';
 import { ToastService } from '../../shared/components/toast/toast.service';
 
@@ -23,7 +24,7 @@ interface BrandCount {
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CurrencyPipe],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe],
   template: `
     <div class="zf-page">
       <div class="zf-page-header">
@@ -78,6 +79,33 @@ interface BrandCount {
                     <div class="bar-row__fill" [style.width.%]="barWidth(b.count, maxBrandCount())"></div>
                   </div>
                   <span class="bar-row__value">{{ b.count }}</span>
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <section class="zf-card">
+          <h2>Satisfacción de clientes</h2>
+          @if (feedbackStats().count === 0) {
+            <p class="zf-hint">Todavía no hay opiniones de clientes.</p>
+          } @else {
+            <div class="feedback-summary">
+              <span class="feedback-summary__avg">{{ feedbackStats().average | number: '1.1-1' }} ★</span>
+              <span class="feedback-summary__count">{{ feedbackStats().count }} opiniones</span>
+            </div>
+            <div class="feedback-list">
+              @for (f of recentFeedback(); track f.id) {
+                <div class="feedback-item">
+                  <div class="feedback-item__top">
+                    <strong>{{ f.orderCode }}</strong>
+                    <span class="feedback-item__stars">{{ starsFor(f.rating) }}</span>
+                    <small>{{ f.createdAt | date: 'dd/MM/yyyy' }}</small>
+                  </div>
+                  <div class="feedback-item__meta">{{ f.customerName }}</div>
+                  @if (f.comment) {
+                    <div class="feedback-item__comment">"{{ f.comment }}"</div>
+                  }
                 </div>
               }
             </div>
@@ -167,18 +195,81 @@ interface BrandCount {
       .status-chip__label {
         color: var(--zf-text-secondary);
       }
+
+      .feedback-summary {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        margin-bottom: 1rem;
+      }
+
+      .feedback-summary__avg {
+        font-family: var(--zf-font-heading);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--zf-blue);
+      }
+
+      .feedback-summary__count {
+        color: var(--zf-text-muted);
+        font-size: 0.85rem;
+      }
+
+      .feedback-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .feedback-item {
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius-sm);
+        padding: 0.65rem 0.85rem;
+      }
+
+      .feedback-item__top {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+      }
+
+      .feedback-item__stars {
+        color: var(--zf-blue);
+      }
+
+      .feedback-item__top small {
+        margin-left: auto;
+        color: var(--zf-text-muted);
+      }
+
+      .feedback-item__meta {
+        font-size: 0.78rem;
+        color: var(--zf-text-muted);
+        margin-top: 0.2rem;
+      }
+
+      .feedback-item__comment {
+        font-size: 0.85rem;
+        color: var(--zf-text-secondary);
+        margin-top: 0.35rem;
+        font-style: italic;
+      }
     `,
   ],
 })
 export class ReportsComponent implements OnInit {
   private readonly cashService = inject(CashService);
   private readonly ordersService = inject(RepairOrdersService);
+  private readonly feedbackService = inject(OrderFeedbackService);
   private readonly toast = inject(ToastService);
 
   protected readonly loading = signal(true);
   protected readonly revenueByMonth = signal<MonthRevenue[]>([]);
   protected readonly statusCounts = signal<StatusCount[]>([]);
   protected readonly topBrands = signal<BrandCount[]>([]);
+  protected readonly feedbackStats = signal<FeedbackStats>({ average: 0, count: 0 });
+  protected readonly recentFeedback = signal<FeedbackEntry[]>([]);
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
 
   async ngOnInit(): Promise<void> {
@@ -186,10 +277,14 @@ export class ReportsComponent implements OnInit {
       const now = new Date();
       const monthsAgo6 = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-      const [movements, orders] = await Promise.all([
+      const [movements, orders, feedbackStats, recentFeedback] = await Promise.all([
         this.cashService.listBetween(monthsAgo6.toISOString(), now.toISOString()),
         this.ordersService.list({}),
+        this.feedbackService.getStats(),
+        this.feedbackService.listRecent(10),
       ]);
+      this.feedbackStats.set(feedbackStats);
+      this.recentFeedback.set(recentFeedback);
 
       const months: MonthRevenue[] = [];
       for (let i = 5; i >= 0; i--) {
@@ -241,5 +336,9 @@ export class ReportsComponent implements OnInit {
 
   barWidth(value: number, max: number): number {
     return max > 0 ? Math.max(3, (value / max) * 100) : 0;
+  }
+
+  starsFor(rating: number): string {
+    return '★'.repeat(rating) + '☆'.repeat(5 - rating);
   }
 }

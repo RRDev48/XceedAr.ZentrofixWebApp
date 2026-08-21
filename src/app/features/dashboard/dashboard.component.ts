@@ -1,8 +1,9 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { DashboardIndicators, DashboardService } from '../../core/services/dashboard.service';
 import { RepairOrdersService } from '../../core/services/repair-orders.service';
+import { ExpiringWarranty, WarrantiesService } from '../../core/services/warranties.service';
 import { RepairOrder, REPAIR_STATUS_LABELS } from '../../models';
 import { ToastService } from '../../shared/components/toast/toast.service';
 
@@ -11,8 +12,10 @@ interface HeroCard {
   icon: string;
   value: () => string;
   routerLink?: string;
+  queryParams?: Record<string, string>;
   variant: 'hero' | 'alert';
   isAlert?: () => boolean;
+  trend?: () => string | null;
 }
 
 interface FlowCard {
@@ -43,6 +46,7 @@ interface FlowCard {
           @for (card of heroCards; track card.label) {
             <a
               [routerLink]="card.routerLink ?? null"
+              [queryParams]="card.queryParams ?? null"
               class="hero-card"
               [class.hero-card--gradient]="card.variant === 'hero'"
               [class.hero-card--alert]="card.variant === 'alert' && card.isAlert!()"
@@ -52,12 +56,20 @@ interface FlowCard {
               <div>
                 <div class="hero-card__value">{{ card.value() }}</div>
                 <div class="hero-card__label">{{ card.label }}</div>
+                @if (card.trend?.()) {
+                  <div class="hero-card__trend">{{ card.trend!() }}</div>
+                }
               </div>
             </a>
           }
         </div>
 
-        <h2 class="flow-title">Flujo de reparaciones</h2>
+        <div class="flow-title-row">
+          <h2 class="flow-title">Flujo de reparaciones</h2>
+          @if (ordersTrendText(); as trend) {
+            <span class="flow-title__trend">{{ trend }}</span>
+          }
+        </div>
         <div class="flow-grid">
           @for (card of flowCards; track card.label) {
             <a [routerLink]="card.routerLink ?? null" class="flow-card">
@@ -67,6 +79,31 @@ interface FlowCard {
             </a>
           }
         </div>
+
+        @if (upcomingDeliveries().length > 0) {
+          <section class="zf-card recent-section">
+            <div class="zf-page-header" style="margin-bottom: 0.75rem;">
+              <h2 style="margin:0;">Agenda de entregas</h2>
+              <span class="zf-subtitle">Próximos 7 días</span>
+            </div>
+
+            <div class="recent-list">
+              @for (o of upcomingDeliveries(); track o.id) {
+                <a [routerLink]="['/ordenes', o.id]" class="recent-item">
+                  <span class="recent-item__dot"></span>
+                  <div class="recent-item__main">
+                    <div class="recent-item__code">{{ o.code }}</div>
+                    <div class="recent-item__meta">{{ o.customerName }} · {{ o.deviceLabel }}</div>
+                  </div>
+                  <div class="recent-item__right">
+                    <span class="zf-badge">{{ statusLabels[o.status] }}</span>
+                    <small>{{ o.estimatedCompletionDate | date: 'dd/MM/yyyy' }}</small>
+                  </div>
+                </a>
+              }
+            </div>
+          </section>
+        }
 
         <section class="zf-card recent-section">
           <div class="zf-page-header" style="margin-bottom: 0.75rem;">
@@ -94,6 +131,33 @@ interface FlowCard {
             </div>
           }
         </section>
+
+        @if (expiringWarranties().length > 0) {
+          <section class="zf-card recent-section warranties-section">
+            <div class="zf-page-header" style="margin-bottom: 0.75rem;">
+              <h2 style="margin:0;">Garantías por vencer</h2>
+              <span class="zf-subtitle">Próximos 15 días</span>
+            </div>
+
+            <div class="recent-list">
+              @for (w of expiringWarranties(); track w.warranty.id) {
+                <a [routerLink]="['/ordenes', w.orderId]" class="recent-item">
+                  <span class="recent-item__dot" [class.recent-item__dot--warn]="w.daysLeft <= 5"></span>
+                  <div class="recent-item__main">
+                    <div class="recent-item__code">{{ w.orderCode }}</div>
+                    <div class="recent-item__meta">{{ w.customerName }} · {{ w.deviceLabel }}</div>
+                  </div>
+                  <div class="recent-item__right">
+                    <span class="zf-badge" [class.zf-badge--warning]="w.daysLeft <= 5">
+                      {{ w.daysLeft <= 0 ? 'Vence hoy' : 'Vence en ' + w.daysLeft + ' días' }}
+                    </span>
+                    <small>{{ w.warranty.expiresAt | date: 'dd/MM/yyyy' }}</small>
+                  </div>
+                </a>
+              }
+            </div>
+          </section>
+        }
       }
     </div>
   `,
@@ -116,7 +180,13 @@ interface FlowCard {
 
       @media (min-width: 720px) {
         .hero-row {
-          grid-template-columns: 1.4fr 1fr 1fr;
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      @media (min-width: 1180px) {
+        .hero-row {
+          grid-template-columns: 1.3fr repeat(4, 1fr);
         }
       }
 
@@ -166,6 +236,12 @@ interface FlowCard {
         opacity: 0.85;
       }
 
+      .hero-card__trend {
+        font-size: 0.75rem;
+        margin-top: 0.3rem;
+        opacity: 0.85;
+      }
+
       .hero-card--alert {
         border-color: rgba(255, 107, 107, 0.4);
         background: var(--zf-danger-soft);
@@ -181,12 +257,24 @@ interface FlowCard {
 
       /* ---------- Flow grid ---------- */
 
+      .flow-title-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 0 0 0.75rem;
+      }
+
       .flow-title {
         font-size: 0.85rem;
         text-transform: uppercase;
         letter-spacing: 0.04em;
         color: var(--zf-text-muted);
-        margin: 0 0 0.75rem;
+        margin: 0;
+      }
+
+      .flow-title__trend {
+        font-size: 0.78rem;
+        color: var(--zf-text-muted);
       }
 
       .flow-grid {
@@ -282,6 +370,14 @@ interface FlowCard {
         background: var(--zf-purple);
       }
 
+      .recent-item__dot--warn {
+        background: var(--zf-danger);
+      }
+
+      .warranties-section {
+        margin-top: 1.25rem;
+      }
+
       .recent-item__main {
         flex: 1;
         min-width: 0;
@@ -319,11 +415,14 @@ interface FlowCard {
 export class DashboardComponent implements OnInit {
   private readonly dashboardService = inject(DashboardService);
   private readonly ordersService = inject(RepairOrdersService);
+  private readonly warrantiesService = inject(WarrantiesService);
   private readonly toast = inject(ToastService);
 
   protected readonly loading = signal(true);
   protected readonly indicators = signal<DashboardIndicators | null>(null);
   protected readonly recentOrders = signal<RepairOrder[]>([]);
+  protected readonly expiringWarranties = signal<ExpiringWarranty[]>([]);
+  protected readonly upcomingDeliveries = signal<RepairOrder[]>([]);
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
 
   protected readonly heroCards: HeroCard[] = [
@@ -333,6 +432,7 @@ export class DashboardComponent implements OnInit {
       value: () => this.formatCurrency(this.indicators()?.incomeCollected ?? 0),
       routerLink: '/caja',
       variant: 'hero',
+      trend: () => this.formatTrend(this.indicators()?.incomeThisMonth, this.indicators()?.incomeLastMonth),
     },
     {
       label: 'Pendientes de pago',
@@ -349,6 +449,22 @@ export class DashboardComponent implements OnInit {
       routerLink: '/inventario',
       variant: 'alert',
       isAlert: () => (this.indicators()?.criticalStock ?? 0) > 0,
+    },
+    {
+      label: 'Órdenes estancadas',
+      icon: '⏱️',
+      value: () => String(this.indicators()?.staleOrders ?? 0),
+      routerLink: '/ordenes',
+      queryParams: { estancadas: '1' },
+      variant: 'alert',
+      isAlert: () => (this.indicators()?.staleOrders ?? 0) > 0,
+    },
+    {
+      label: 'Garantías por vencer',
+      icon: '🛡️',
+      value: () => String(this.indicators()?.expiringWarranties ?? 0),
+      variant: 'alert',
+      isAlert: () => (this.indicators()?.expiringWarranties ?? 0) > 0,
     },
   ];
 
@@ -388,12 +504,16 @@ export class DashboardComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      const [indicators, recent] = await Promise.all([
+      const [indicators, recent, expiringWarranties, upcomingDeliveries] = await Promise.all([
         this.dashboardService.getIndicators(),
         this.ordersService.listRecent(8),
+        this.warrantiesService.listExpiringSoon(15),
+        this.ordersService.listUpcomingDeliveries(7),
       ]);
       this.indicators.set(indicators);
       this.recentOrders.set(recent);
+      this.expiringWarranties.set(expiringWarranties);
+      this.upcomingDeliveries.set(upcomingDeliveries);
     } catch (err) {
       this.toast.error('No se pudieron cargar los indicadores del panel.');
     } finally {
@@ -405,5 +525,33 @@ export class DashboardComponent implements OnInit {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(
       value,
     );
+  }
+
+  protected readonly ordersTrendText = computed(() => {
+    const ind = this.indicators();
+    if (!ind) {
+      return null;
+    }
+    return `${ind.ordersThisMonth} órdenes este mes${this.trendSuffix(ind.ordersThisMonth, ind.ordersLastMonth)}`;
+  });
+
+  private formatTrend(current?: number, previous?: number): string | null {
+    if (current === undefined || previous === undefined) {
+      return null;
+    }
+    const suffix = this.trendSuffix(current, previous);
+    return suffix ? `Este mes${suffix}` : 'Este mes: sin datos del mes anterior';
+  }
+
+  private trendSuffix(current: number, previous: number): string {
+    if (previous <= 0) {
+      return current > 0 ? ' (mes anterior sin datos)' : '';
+    }
+    const pct = Math.round(((current - previous) / previous) * 100);
+    if (pct === 0) {
+      return ' (igual que el mes pasado)';
+    }
+    const arrow = pct > 0 ? '↑' : '↓';
+    return ` (${arrow} ${Math.abs(pct)}% vs mes pasado)`;
   }
 }

@@ -71,6 +71,23 @@ function mapRow(row: RepairOrderListRow): RepairOrder {
   };
 }
 
+/** Días permitidos en cada estado antes de considerar la orden "estancada". Los estados finales quedan fuera. */
+const STALE_THRESHOLD_DAYS: Partial<Record<RepairStatus, number>> = {
+  pendiente_diagnostico: 2,
+  en_diagnostico: 3,
+  presupuesto_pendiente: 3,
+  presupuesto_aprobado: 2,
+  esperando_repuesto: 10,
+  en_reparacion: 5,
+  en_pruebas: 2,
+  listo_para_entregar: 5,
+  garantia_reingreso: 5,
+};
+
+export interface StaleOrder extends RepairOrder {
+  daysInStatus: number;
+}
+
 function paymentStatusOf(order: { total: number; deposit: number; balanceDue: number }): PaymentStatus {
   if (order.total <= 0) {
     return 'sin_pago';
@@ -147,6 +164,27 @@ export class RepairOrdersService {
       .select('*')
       .eq('related_order_id', orderId)
       .order('created_at', { ascending: false });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data as RepairOrderListRow[]).map(mapRow);
+  }
+
+  /** Órdenes activas con fecha estimada de entrega dentro de los próximos `days` días. */
+  async listUpcomingDeliveries(days = 7): Promise<RepairOrder[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + days);
+
+    const { data, error } = await this.supabase.client
+      .from('repair_orders_list')
+      .select('*')
+      .is('deleted_at', null)
+      .not('status', 'in', '(entregado,cancelado,sin_reparacion)')
+      .gte('estimated_completion_date', today.toISOString().slice(0, 10))
+      .lte('estimated_completion_date', limit.toISOString().slice(0, 10))
+      .order('estimated_completion_date', { ascending: true });
     if (error) {
       throw new Error(error.message);
     }
@@ -278,5 +316,56 @@ export class RepairOrdersService {
 
   paymentStatusOf(order: RepairOrder): PaymentStatus {
     return paymentStatusOf(order);
+  }
+
+  /** Días transcurridos desde el último cambio de estado, para cada orden pedida. */
+  async getDaysInStatusMap(orderIds: string[]): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    if (!orderIds.length) {
+      return result;
+    }
+    const { data, error } = await this.supabase.client
+      .from('repair_status_history')
+      .select('repair_order_id, changed_at')
+      .in('repair_order_id', orderIds)
+      .order('changed_at', { ascending: false });
+    if (error) {
+      throw new Error(error.message);
+    }
+    const latestChangeByOrder = new Map<string, string>();
+    for (const row of data ?? []) {
+      if (!latestChangeByOrder.has(row.repair_order_id)) {
+        latestChangeByOrder.set(row.repair_order_id, row.changed_at);
+      }
+    }
+    const now = Date.now();
+    for (const [orderId, changedAt] of latestChangeByOrder) {
+      result.set(orderId, Math.floor((now - new Date(changedAt).getTime()) / 86_400_000));
+    }
+    return result;
+  }
+
+  isStale(status: RepairStatus, daysInStatus: number): boolean {
+    const threshold = STALE_THRESHOLD_DAYS[status];
+    return threshold !== undefined && daysInStatus >= threshold;
+  }
+
+  /** Órdenes activas que llevan más días de la cuenta en su estado actual. */
+  async listStale(): Promise<StaleOrder[]> {
+    const activeStatuses = Object.keys(STALE_THRESHOLD_DAYS) as RepairStatus[];
+    const { data, error } = await this.supabase.client
+      .from('repair_orders_list')
+      .select('*')
+      .is('deleted_at', null)
+      .in('status', activeStatuses);
+    if (error) {
+      throw new Error(error.message);
+    }
+    const orders = (data as RepairOrderListRow[]).map(mapRow);
+    const daysMap = await this.getDaysInStatusMap(orders.map((o) => o.id));
+    return orders
+      .map((o) => ({ ...o, daysInStatus: daysMap.get(o.id) ?? 0 }))
+      .filter((o) => this.isStale(o.status, o.daysInStatus))
+      .sort((a, b) => b.daysInStatus - a.daysInStatus);
   }
 }

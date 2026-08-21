@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { NavIconComponent, NavIconName } from '../../shared/components/nav-icon/nav-icon.component';
+import { GlobalSearchComponent } from '../../shared/components/global-search/global-search.component';
 
 interface NavItem {
   path: string;
@@ -17,6 +18,7 @@ const SIDEBAR_NAV_ITEMS: NavItem[] = [
   { path: '/inventario', label: 'Inventario', icon: 'inventario' },
   { path: '/caja', label: 'Caja', icon: 'caja', adminOnly: true },
   { path: '/reportes', label: 'Reportes', icon: 'reportes', adminOnly: true },
+  { path: '/actividad', label: 'Actividad', icon: 'actividad', adminOnly: true },
   { path: '/configuracion/usuarios', label: 'Usuarios', icon: 'usuarios', adminOnly: true },
 ];
 
@@ -29,7 +31,7 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NavIconComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NavIconComponent, GlobalSearchComponent],
   template: `
     <div class="shell">
       <aside class="sidebar">
@@ -42,6 +44,12 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
             <div class="brand__sub">Gestión técnica</div>
           </div>
         </div>
+
+        <button class="sidebar__search" (click)="globalSearch.openSearch()">
+          <app-nav-icon name="buscar" />
+          Buscar…
+          <span class="sidebar__search-kbd">Ctrl K</span>
+        </button>
 
         <nav class="sidebar__nav">
           @for (item of visibleSidebarItems(); track item.path) {
@@ -78,6 +86,9 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
             <img src="assets/branding/isotipo.png" alt="Zentrofix" class="topbar__mark" />
             Zentrofix
           </div>
+          <button class="topbar__search-btn" (click)="globalSearch.openSearch()" aria-label="Buscar">
+            <app-nav-icon name="buscar" />
+          </button>
           <a routerLink="/ordenes/nueva" class="zf-btn zf-btn--primary zf-btn--sm topbar__cta">+ Orden</a>
         </header>
 
@@ -98,6 +109,8 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
           <small>Nueva</small>
         </a>
       </nav>
+
+      <app-global-search #globalSearch />
     </div>
   `,
   styles: [
@@ -143,6 +156,20 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
         width: 22px;
         height: 22px;
         object-fit: contain;
+      }
+
+      .topbar__search-btn {
+        background: none;
+        border: none;
+        color: var(--zf-text-muted);
+        cursor: pointer;
+        padding: 0.4rem;
+        display: flex;
+      }
+
+      .topbar__search-btn svg {
+        width: 1.15rem;
+        height: 1.15rem;
       }
 
       .content {
@@ -256,6 +283,35 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
         .brand__sub {
           font-size: 0.72rem;
           color: var(--zf-text-muted);
+        }
+
+        .sidebar__search {
+          display: flex;
+          align-items: center;
+          gap: 0.55rem;
+          width: 100%;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--zf-border-soft);
+          border-radius: var(--zf-radius-sm);
+          padding: 0.55rem 0.7rem;
+          color: var(--zf-text-muted);
+          font-size: 0.85rem;
+          font-family: inherit;
+          cursor: pointer;
+          margin-bottom: 1rem;
+        }
+
+        .sidebar__search:hover {
+          border-color: var(--zf-blue);
+          color: var(--zf-text-secondary);
+        }
+
+        .sidebar__search-kbd {
+          margin-left: auto;
+          font-size: 0.68rem;
+          border: 1px solid var(--zf-border-soft);
+          border-radius: 4px;
+          padding: 0.05rem 0.3rem;
         }
 
         .sidebar__nav {
