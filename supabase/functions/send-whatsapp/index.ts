@@ -29,14 +29,28 @@ interface SendWhatsAppPayload {
   message: string;
 }
 
+// El navegador invoca esta función vía supabase.functions.invoke() (cross-origin):
+// hay que responder el preflight OPTIONS y devolver el header CORS en toda respuesta.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+});
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return json({ error: 'Método no permitido' }, 405);
   }
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
+    return json({ error: 'No autorizado' }, 401);
   }
 
   // Valida que quien llama es un usuario autenticado y activo de Zentrofix
@@ -46,7 +60,11 @@ Deno.serve(async (req: Request) => {
   });
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) {
-    return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
+    return json({ error: 'No autorizado' }, 401);
+  }
+  const { data: profile } = await supabase.from('profiles').select('active').eq('id', userData.user.id).single();
+  if (!profile?.active) {
+    return json({ error: 'Tu usuario no está activo' }, 403);
   }
 
   const payload = (await req.json()) as SendWhatsAppPayload;
@@ -54,10 +72,7 @@ Deno.serve(async (req: Request) => {
   const token = Deno.env.get('WHATSAPP_BUSINESS_TOKEN');
   const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
   if (!token || !phoneNumberId) {
-    return new Response(
-      JSON.stringify({ error: 'WhatsApp Business API todavía no está configurada en este proyecto.' }),
-      { status: 501 },
-    );
+    return json({ error: 'WhatsApp Business API todavía no está configurada en este proyecto.' }, 501);
   }
 
   const metaResponse = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
@@ -76,7 +91,7 @@ Deno.serve(async (req: Request) => {
 
   const result = await metaResponse.json();
   if (!metaResponse.ok) {
-    return new Response(JSON.stringify({ error: result }), { status: 502 });
+    return json({ error: result }, 502);
   }
 
   // Registra el envío real (a diferencia de communications.status, que hoy
@@ -92,7 +107,5 @@ Deno.serve(async (req: Request) => {
     created_by: userData.user.id,
   });
 
-  return new Response(JSON.stringify({ ok: true, result }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return json({ ok: true, result });
 });

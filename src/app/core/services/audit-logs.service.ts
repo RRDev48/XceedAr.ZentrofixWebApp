@@ -17,6 +17,22 @@ export interface AuditLogFilters {
   limit?: number;
 }
 
+interface AuditLogRow {
+  id: string;
+  table_name: string;
+  record_id: string | null;
+  action: string;
+  changed_by: string | null;
+  changed_at: string;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
+}
+
+interface ProfileNameRow {
+  id: string;
+  full_name: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuditLogsService {
   constructor(private readonly supabase: SupabaseClientService) {}
@@ -36,12 +52,12 @@ export class AuditLogsService {
     if (error) {
       throw new Error(error.message);
     }
-    const rows = data ?? [];
+    const rows = (data ?? []) as AuditLogRow[];
     if (!rows.length) {
       return [];
     }
 
-    const profileIds = [...new Set(rows.map((r: any) => r.changed_by).filter(Boolean))];
+    const profileIds = [...new Set(rows.map((r) => r.changed_by).filter((id): id is string => Boolean(id)))];
     let namesById = new Map<string, string>();
     if (profileIds.length) {
       const { data: profiles, error: profilesError } = await this.supabase.client
@@ -51,10 +67,10 @@ export class AuditLogsService {
       if (profilesError) {
         throw new Error(profilesError.message);
       }
-      namesById = new Map((profiles ?? []).map((p: any) => [p.id, p.full_name]));
+      namesById = new Map((profiles as ProfileNameRow[] | null ?? []).map((p) => [p.id, p.full_name]));
     }
 
-    return rows.map((r: any) => ({
+    return rows.map((r) => ({
       id: r.id,
       tableName: r.table_name,
       recordId: r.record_id,

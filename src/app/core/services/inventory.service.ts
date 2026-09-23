@@ -17,6 +17,17 @@ interface InventoryItemRow {
   deleted_at: string | null;
 }
 
+interface InventoryMovementRow {
+  id: string;
+  inventory_item_id: string;
+  repair_order_id: string | null;
+  movement_type: InventoryMovementType;
+  quantity: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 function mapItem(row: InventoryItemRow): InventoryItem {
   return {
     id: row.id,
@@ -57,6 +68,26 @@ export class InventoryService {
       throw new Error(error.message);
     }
     return (data as InventoryItemRow[]).map(mapItem);
+  }
+
+  async listPage(search: string, page: number, pageSize: number): Promise<{ items: InventoryItem[]; total: number }> {
+    let query = this.supabase.client
+      .from('inventory_items')
+      .select('*', { count: 'exact' })
+      .is('deleted_at', null)
+      .order('name', { ascending: true });
+
+    if (search.trim()) {
+      const term = search.trim();
+      query = query.or(`name.ilike.%${term}%,sku.ilike.%${term}%`);
+    }
+
+    const from = (page - 1) * pageSize;
+    const { data, error, count } = await query.range(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return { items: (data as InventoryItemRow[]).map(mapItem), total: count ?? 0 };
   }
 
   async getById(id: string): Promise<InventoryItem | null> {
@@ -150,7 +181,7 @@ export class InventoryService {
     if (error) {
       throw new Error(error.message);
     }
-    return (data ?? []).map((row: any) => ({
+    return ((data ?? []) as InventoryMovementRow[]).map((row) => ({
       id: row.id,
       inventoryItemId: row.inventory_item_id,
       repairOrderId: row.repair_order_id,

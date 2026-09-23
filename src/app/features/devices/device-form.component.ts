@@ -1,6 +1,7 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { AuthService } from '../../core/auth/auth.service';
 import { DevicesService } from '../../core/services/devices.service';
 import { CustomersService } from '../../core/services/customers.service';
 import { DeviceType, DEVICE_TYPE_LABELS } from '../../models';
@@ -85,7 +86,7 @@ import { CanComponentDeactivate } from '../../core/guards/unsaved-changes.guard'
           </div>
 
           <div class="form-actions">
-            @if (isEdit()) {
+            @if (isEdit() && canDelete()) {
               <button
                 type="button"
                 class="zf-btn zf-btn--ghost zf-btn--danger form-actions__delete"
@@ -132,8 +133,10 @@ export class DeviceFormComponent implements OnInit, CanComponentDeactivate {
   private readonly customersService = inject(CustomersService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
 
+  protected readonly canDelete = computed(() => ['admin', 'recepcion'].includes(this.auth.profile()?.role ?? ''));
   protected readonly firstErrorMessage = firstErrorMessage;
   protected readonly deviceTypeLabels = DEVICE_TYPE_LABELS;
   protected readonly deviceTypes: DeviceType[] = ['celular', 'tablet', 'notebook', 'consola', 'otro'];

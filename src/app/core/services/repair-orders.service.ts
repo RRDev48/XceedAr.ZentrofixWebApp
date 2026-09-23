@@ -88,6 +88,22 @@ export interface StaleOrder extends RepairOrder {
   daysInStatus: number;
 }
 
+interface AssignmentRow {
+  repair_order_id: string;
+  technician_id: string | null;
+  profiles: { full_name: string } | null;
+}
+
+interface RepairStatusHistoryRow {
+  id: string;
+  repair_order_id: string;
+  from_status: RepairStatus | null;
+  to_status: RepairStatus;
+  changed_at: string;
+  changed_by: string | null;
+  note: string | null;
+}
+
 function paymentStatusOf(order: { total: number; deposit: number; balanceDue: number }): PaymentStatus {
   if (order.total <= 0) {
     return 'sin_pago';
@@ -105,10 +121,17 @@ function paymentStatusOf(order: { total: number; deposit: number; balanceDue: nu
 export class RepairOrdersService {
   constructor(private readonly supabase: SupabaseClientService) {}
 
-  async list(filters: Partial<RepairOrderFilters> = {}): Promise<RepairOrder[]> {
+  /**
+   * Arma la query base compartida por list() y listPage(). Devuelve null cuando el
+   * filtro de técnico ya descarta cualquier resultado posible (evita una query inútil).
+   * Se envuelve en { query } porque el builder de supabase-js es "thenable": si se
+   * devolviera directo desde una función async, `await` lo ejecutaría de una, antes
+   * de poder encadenar .range().
+   */
+  private async buildListQuery(filters: Partial<RepairOrderFilters>, withCount = false) {
     let query = this.supabase.client
       .from('repair_orders_list')
-      .select('*')
+      .select('*', withCount ? { count: 'exact' } : undefined)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
@@ -131,17 +154,103 @@ export class RepairOrdersService {
       );
     }
 
-    const { data, error } = await query;
+    if (filters.technicianId && filters.technicianId !== 'todos') {
+      if (filters.technicianId === 'sin_asignar') {
+        const assignedIds = await this.assignedOrderIds();
+        if (assignedIds.length) {
+          query = query.not('id', 'in', `(${assignedIds.join(',')})`);
+        }
+      } else {
+        const ids = await this.assignedOrderIds(filters.technicianId);
+        if (!ids.length) {
+          return null;
+        }
+        query = query.in('id', ids);
+      }
+    }
+
+    return { query };
+  }
+
+  async list(filters: Partial<RepairOrderFilters> = {}): Promise<RepairOrder[]> {
+    const built = await this.buildListQuery(filters);
+    if (!built) {
+      return [];
+    }
+    const { data, error } = await built.query;
     if (error) {
       throw new Error(error.message);
     }
-    let orders = (data as RepairOrderListRow[]).map(mapRow);
+    let orders = await this.withAssignments((data as RepairOrderListRow[]).map(mapRow));
 
     if (filters.paymentStatus && filters.paymentStatus !== 'todos') {
       orders = orders.filter((o) => paymentStatusOf(o) === filters.paymentStatus);
     }
 
     return orders;
+  }
+
+  /**
+   * Versión paginada de list(), pensada para el listado principal. No soporta el
+   * filtro paymentStatus (se calcula en el cliente a partir de total/saldo, no existe
+   * como columna): cuando ese filtro está activo, el llamador debe usar list() y
+   * paginar en memoria.
+   */
+  async listPage(
+    filters: Omit<Partial<RepairOrderFilters>, 'paymentStatus'>,
+    page: number,
+    pageSize: number,
+  ): Promise<{ orders: RepairOrder[]; total: number }> {
+    const built = await this.buildListQuery(filters, true);
+    if (!built) {
+      return { orders: [], total: 0 };
+    }
+    const from = (page - 1) * pageSize;
+    const { data, error, count } = await built.query.range(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(error.message);
+    }
+    const orders = await this.withAssignments((data as RepairOrderListRow[]).map(mapRow));
+    return { orders, total: count ?? orders.length };
+  }
+
+  private async assignedOrderIds(technicianId?: string): Promise<string[]> {
+    let query = this.supabase.client.from('repair_order_assignments').select('repair_order_id');
+    query = technicianId
+      ? query.eq('technician_id', technicianId)
+      : query.not('technician_id', 'is', null);
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data ?? []).map((row: { repair_order_id: string }) => row.repair_order_id);
+  }
+
+  private async withAssignments(orders: RepairOrder[]): Promise<RepairOrder[]> {
+    if (!orders.length) return orders;
+    const { data, error } = await this.supabase.client
+      .from('repair_order_assignments')
+      .select('repair_order_id, technician_id, profiles!repair_order_assignments_technician_id_fkey(full_name)')
+      .in('repair_order_id', orders.map((o) => o.id));
+    if (error) throw new Error(error.message);
+    // El cliente de Supabase no tiene tipos generados desde el schema: para un join
+    // a-uno vía FK explícita infiere "profiles" como array, aunque en runtime siempre
+    // es un objeto. Se pasa por unknown para no pelear con esa forma inferida.
+    const byOrder = new Map(
+      ((data as unknown as AssignmentRow[]) ?? []).map((a) => [a.repair_order_id, a]),
+    );
+    return orders.map((order) => {
+      const assignment = byOrder.get(order.id);
+      return { ...order, assignedTechnicianId: assignment?.technician_id ?? null,
+        assignedTechnicianName: assignment?.profiles?.full_name ?? null };
+    });
+  }
+
+  async assignTechnician(orderId: string, technicianId: string | null): Promise<void> {
+    const { error } = await this.supabase.client.rpc('assign_repair_order_technician', {
+      p_order_id: orderId, p_technician_id: technicianId,
+    });
+    if (error) throw new Error(error.message);
   }
 
   async listByCustomer(customerId: string): Promise<RepairOrder[]> {
@@ -213,7 +322,8 @@ export class RepairOrdersService {
     if (error) {
       throw new Error(error.message);
     }
-    return data ? mapRow(data as RepairOrderListRow) : null;
+    if (!data) return null;
+    return (await this.withAssignments([mapRow(data as RepairOrderListRow)]))[0] ?? null;
   }
 
   async create(value: RepairOrderFormValue): Promise<RepairOrder> {
@@ -303,7 +413,7 @@ export class RepairOrdersService {
     if (error) {
       throw new Error(error.message);
     }
-    return (data ?? []).map((row: any) => ({
+    return ((data ?? []) as RepairStatusHistoryRow[]).map((row) => ({
       id: row.id,
       repairOrderId: row.repair_order_id,
       fromStatus: row.from_status,

@@ -16,6 +16,20 @@ export interface FeedbackStats {
   count: number;
 }
 
+interface FeedbackRow {
+  id: string;
+  repair_order_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+}
+
+interface OrderSummaryRow {
+  id: string;
+  code: string;
+  customer_name: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OrderFeedbackService {
   constructor(private readonly supabase: SupabaseClientService) {}
@@ -29,12 +43,12 @@ export class OrderFeedbackService {
     if (error) {
       throw new Error(error.message);
     }
-    const rows = data ?? [];
+    const rows = (data ?? []) as FeedbackRow[];
     if (!rows.length) {
       return [];
     }
 
-    const orderIds = rows.map((r: any) => r.repair_order_id);
+    const orderIds = rows.map((r) => r.repair_order_id);
     const { data: orders, error: ordersError } = await this.supabase.client
       .from('repair_orders_list')
       .select('id, code, customer_name')
@@ -42,9 +56,9 @@ export class OrderFeedbackService {
     if (ordersError) {
       throw new Error(ordersError.message);
     }
-    const orderById = new Map((orders ?? []).map((o: any) => [o.id, o]));
+    const orderById = new Map((orders as OrderSummaryRow[] | null ?? []).map((o) => [o.id, o]));
 
-    return rows.map((r: any) => {
+    return rows.map((r) => {
       const order = orderById.get(r.repair_order_id);
       return {
         id: r.id,
@@ -63,7 +77,7 @@ export class OrderFeedbackService {
     if (error) {
       throw new Error(error.message);
     }
-    const ratings = (data ?? []).map((r: any) => Number(r.rating));
+    const ratings = ((data ?? []) as Pick<FeedbackRow, 'rating'>[]).map((r) => Number(r.rating));
     if (!ratings.length) {
       return { average: 0, count: 0 };
     }

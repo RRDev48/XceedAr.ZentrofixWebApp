@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { CurrencyPipe } from '@angular/common';
@@ -15,7 +15,7 @@ import { ToastService } from '../../shared/components/toast/toast.service';
       <div class="zf-page-header">
         <div>
           <h1>Inventario</h1>
-          <p class="zf-subtitle">{{ items().length }} repuestos / insumos registrados</p>
+          <p class="zf-subtitle">{{ totalCount() }} repuestos / insumos registrados</p>
         </div>
         <a routerLink="/inventario/nuevo" class="zf-btn zf-btn--primary">+ Nuevo ítem</a>
       </div>
@@ -52,6 +52,23 @@ import { ToastService } from '../../shared/components/toast/toast.service';
             </a>
           }
         </div>
+
+        @if (totalPages() > 1) {
+          <div class="pagination">
+            <button type="button" class="zf-btn zf-btn--ghost zf-btn--sm" [disabled]="page() <= 1" (click)="prevPage()">
+              ← Anterior
+            </button>
+            <span class="pagination__label">Página {{ page() }} de {{ totalPages() }}</span>
+            <button
+              type="button"
+              class="zf-btn zf-btn--ghost zf-btn--sm"
+              [disabled]="page() >= totalPages()"
+              (click)="nextPage()"
+            >
+              Siguiente →
+            </button>
+          </div>
+        }
       }
     </div>
   `,
@@ -111,12 +128,31 @@ import { ToastService } from '../../shared/components/toast/toast.service';
       .item-card__stock--low strong {
         color: var(--zf-danger);
       }
+
+      .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .pagination__label {
+        font-size: 0.85rem;
+        color: var(--zf-text-muted);
+      }
     `,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InventoryListComponent implements OnInit {
   private readonly inventoryService = inject(InventoryService);
   private readonly toast = inject(ToastService);
+
+  protected readonly pageSize = 25;
+  protected readonly page = signal(1);
+  protected readonly totalCount = signal(0);
+  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
 
   protected readonly items = signal<InventoryItem[]>([]);
   protected readonly loading = signal(true);
@@ -128,14 +164,33 @@ export class InventoryListComponent implements OnInit {
   }
 
   onSearchChange(): void {
+    this.page.set(1);
     clearTimeout(this.searchTimeout);
     this.searchTimeout = setTimeout(() => this.load(), 300);
+  }
+
+  protected nextPage(): void {
+    if (this.page() >= this.totalPages()) {
+      return;
+    }
+    this.page.update((p) => p + 1);
+    this.load();
+  }
+
+  protected prevPage(): void {
+    if (this.page() <= 1) {
+      return;
+    }
+    this.page.update((p) => p - 1);
+    this.load();
   }
 
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      this.items.set(await this.inventoryService.list(this.search));
+      const { items, total } = await this.inventoryService.listPage(this.search, this.page(), this.pageSize);
+      this.items.set(items);
+      this.totalCount.set(total);
     } catch {
       this.toast.error('No se pudo cargar el inventario.');
     } finally {

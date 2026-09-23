@@ -86,6 +86,8 @@ export interface RepairOrder {
   balanceDue: number;
   deliveredAt: string | null;
   relatedOrderId: string | null;
+  assignedTechnicianId?: string | null;
+  assignedTechnicianName?: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -122,4 +124,5 @@ export interface RepairOrderFilters {
   brand: string;
   dateFrom: string | null;
   dateTo: string | null;
+  technicianId?: string | 'todos' | 'sin_asignar';
 }

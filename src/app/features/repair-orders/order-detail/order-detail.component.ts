@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AuthService } from '../../../core/auth/auth.service';
 import { RepairOrdersService } from '../../../core/services/repair-orders.service';
 import { WhatsappService } from '../../../core/services/whatsapp.service';
 import { QuotesService } from '../../../core/services/quotes.service';
@@ -126,6 +127,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               </form>
             </section>
 
+            @if (canManagePricing()) {
             <section class="zf-card">
               <h2>Presupuesto</h2>
 
@@ -381,6 +383,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 }
               </div>
             </section>
+            }
 
             <section class="zf-card">
               <h2>Pagos</h2>
@@ -1354,7 +1357,9 @@ export class OrderDetailComponent implements OnInit {
   private readonly inventoryService = inject(InventoryService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
 
+  protected readonly canManagePricing = computed(() => ['admin', 'recepcion'].includes(this.auth.profile()?.role ?? ''));
   protected readonly firstErrorMessage = firstErrorMessage;
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
   protected readonly statusOrder = REPAIR_STATUS_ORDER;

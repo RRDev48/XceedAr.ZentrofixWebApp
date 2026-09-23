@@ -22,6 +22,14 @@ interface WarrantyRow {
   updated_at: string;
 }
 
+interface OrderSummaryRow {
+  id: string;
+  code: string;
+  customer_name: string;
+  device_brand: string;
+  device_model: string;
+}
+
 function mapWarranty(row: WarrantyRow): Warranty {
   return {
     id: row.id,
@@ -105,7 +113,7 @@ export class WarrantiesService {
     if (ordersError) {
       throw new Error(ordersError.message);
     }
-    const orderById = new Map((orders ?? []).map((o: any) => [o.id, o]));
+    const orderById = new Map((orders as OrderSummaryRow[] | null ?? []).map((o) => [o.id, o]));
     const now = today.getTime();
 
     return warranties.map((w) => {

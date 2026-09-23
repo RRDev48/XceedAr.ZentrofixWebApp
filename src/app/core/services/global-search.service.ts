@@ -22,6 +22,22 @@ export interface GlobalSearchResults {
 
 const RESULT_LIMIT = 6;
 
+interface CustomerSearchRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  whatsapp_phone: string;
+}
+
+interface OrderSearchRow {
+  id: string;
+  code: string;
+  customer_name: string;
+  device_brand: string;
+  device_model: string;
+  status: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GlobalSearchService {
   constructor(private readonly supabase: SupabaseClientService) {}
@@ -57,12 +73,12 @@ export class GlobalSearchService {
     }
 
     return {
-      customers: (customersResult.data ?? []).map((c: any) => ({
+      customers: ((customersResult.data ?? []) as CustomerSearchRow[]).map((c) => ({
         id: c.id,
         name: `${c.first_name} ${c.last_name}`.trim(),
         phone: c.whatsapp_phone,
       })),
-      orders: (ordersResult.data ?? []).map((o: any) => ({
+      orders: ((ordersResult.data ?? []) as OrderSearchRow[]).map((o) => ({
         id: o.id,
         code: o.code,
         customerName: o.customer_name,

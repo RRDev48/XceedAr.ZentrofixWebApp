@@ -4,6 +4,18 @@ import { RepairOrdersService } from './repair-orders.service';
 import { WarrantiesService } from './warranties.service';
 import { CashService } from './cash.service';
 
+interface IncomeRow {
+  deposit: number;
+  total: number;
+  balance_due: number;
+}
+
+interface StockRow {
+  id: string;
+  stock_quantity: number;
+  minimum_stock: number;
+}
+
 export interface DashboardIndicators {
   pendingDiagnosis: number;
   pendingQuote: number;
@@ -92,13 +104,13 @@ export class DashboardService {
       )
       .reduce((sum, m) => sum + m.amount, 0);
 
-    const incomeCollected = (incomeRows.data ?? []).reduce((sum: number, row: any) => {
+    const incomeCollected = ((incomeRows.data ?? []) as IncomeRow[]).reduce((sum, row) => {
       const collected = Number(row.total) - Number(row.balance_due);
       return sum + (collected > 0 ? collected : 0);
     }, 0);
 
-    const criticalStockCount = (criticalStock.data ?? []).filter(
-      (row: any) => Number(row.stock_quantity) <= Number(row.minimum_stock),
+    const criticalStockCount = ((criticalStock.data ?? []) as StockRow[]).filter(
+      (row) => Number(row.stock_quantity) <= Number(row.minimum_stock),
     ).length;
 
     return {

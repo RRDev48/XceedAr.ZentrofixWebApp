@@ -51,4 +51,16 @@ export class ProfilesService {
     }
     return mapProfile(data as ProfileRow);
   }
+
+  async listActiveTechnicians(): Promise<Profile[]> {
+    const { data, error } = await this.supabase.client
+      .from('profiles').select('*').eq('role', 'tecnico').eq('active', true).order('full_name');
+    if (error) throw new Error(error.message);
+    return (data as ProfileRow[]).map(mapProfile);
+  }
+
+  async createUser(value: { fullName: string; email: string; password: string; role: UserRole }): Promise<void> {
+    const { error } = await this.supabase.client.functions.invoke('admin-users', { body: value });
+    if (error) throw new Error(error.message);
+  }
 }

@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CurrencyPipe, DatePipe } from '@angular/common';
+import { AuthService } from '../../../core/auth/auth.service';
 import { CustomersService } from '../../../core/services/customers.service';
 import { DevicesService } from '../../../core/services/devices.service';
 import { RepairOrdersService } from '../../../core/services/repair-orders.service';
@@ -25,14 +26,16 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           </div>
           <div class="header-actions">
             <a [routerLink]="['/clientes', customer()!.id, 'editar']" class="zf-btn zf-btn--ghost">Editar</a>
-            <button
-              type="button"
-              class="zf-btn zf-btn--ghost zf-btn--danger"
-              [disabled]="deleting()"
-              (click)="deleteCustomer()"
-            >
-              Eliminar
-            </button>
+            @if (canDelete()) {
+              <button
+                type="button"
+                class="zf-btn zf-btn--ghost zf-btn--danger"
+                [disabled]="deleting()"
+                (click)="deleteCustomer()"
+              >
+                Eliminar
+              </button>
+            }
           </div>
         </div>
 
@@ -213,12 +216,14 @@ export class CustomerDetailComponent implements OnInit {
   private readonly devicesService = inject(DevicesService);
   private readonly ordersService = inject(RepairOrdersService);
   private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
 
   protected readonly customer = signal<Customer | null>(null);
   protected readonly devices = signal<Device[]>([]);
   protected readonly orders = signal<RepairOrder[]>([]);
   protected readonly loading = signal(true);
   protected readonly deleting = signal(false);
+  protected readonly canDelete = computed(() => ['admin', 'recepcion'].includes(this.auth.profile()?.role ?? ''));
   protected readonly deviceTypeLabels = DEVICE_TYPE_LABELS;
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
 

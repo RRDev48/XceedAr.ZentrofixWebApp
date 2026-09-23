@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/guards/auth.guard';
-import { adminGuard } from './core/guards/admin.guard';
+import { adminGuard, pricingGuard } from './core/guards/admin.guard';
 import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 
 export const routes: Routes = [
@@ -121,12 +121,14 @@ export const routes: Routes = [
       {
         path: 'ordenes/:orderId/presupuestos/nuevo',
         loadComponent: () => import('./features/quotes/quote-form.component').then((m) => m.QuoteFormComponent),
+        canActivate: [pricingGuard],
         canDeactivate: [unsavedChangesGuard],
         title: 'Nuevo presupuesto — Zentrofix',
       },
       {
         path: 'ordenes/:orderId/presupuestos/:quoteId/editar',
         loadComponent: () => import('./features/quotes/quote-form.component').then((m) => m.QuoteFormComponent),
+        canActivate: [pricingGuard],
         canDeactivate: [unsavedChangesGuard],
         title: 'Editar presupuesto — Zentrofix',
       },

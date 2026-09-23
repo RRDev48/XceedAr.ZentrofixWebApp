@@ -32,6 +32,14 @@ function mapCustomer(row: CustomerRow): Customer {
   };
 }
 
+interface CustomerMatchRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  whatsapp_phone: string;
+  dni: string | null;
+}
+
 function toRow(value: CustomerFormValue) {
   return {
     first_name: value.firstName.trim(),
@@ -69,6 +77,28 @@ export class CustomersService {
     return (data as CustomerRow[]).map(mapCustomer);
   }
 
+  async listPage(search: string, page: number, pageSize: number): Promise<{ customers: Customer[]; total: number }> {
+    let query = this.supabase.client
+      .from('customers')
+      .select('*', { count: 'exact' })
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (search.trim()) {
+      const term = search.trim();
+      query = query.or(
+        `first_name.ilike.%${term}%,last_name.ilike.%${term}%,whatsapp_phone.ilike.%${term}%,dni.ilike.%${term}%`,
+      );
+    }
+
+    const from = (page - 1) * pageSize;
+    const { data, error, count } = await query.range(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return { customers: (data as CustomerRow[]).map(mapCustomer), total: count ?? 0 };
+  }
+
   async getById(id: string): Promise<Customer | null> {
     const { data, error } = await this.supabase.client
       .from('customers')
@@ -103,7 +133,7 @@ export class CustomersService {
     if (error) {
       throw new Error(error.message);
     }
-    return (data ?? []).map((row: any) => ({
+    return ((data ?? []) as CustomerMatchRow[]).map((row) => ({
       id: row.id,
       firstName: row.first_name,
       lastName: row.last_name,

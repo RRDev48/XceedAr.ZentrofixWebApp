@@ -29,6 +29,21 @@ const ROLE_LABELS: Record<UserRole, string> = {
         autoregistren por otra vía nacen inactivas hasta que las actives acá.
       </div>
 
+      <form class="zf-card create-card" (ngSubmit)="createUser()">
+        <h2>Dar de alta un usuario</h2>
+        <div class="create-grid">
+          <div class="zf-field"><label>Nombre completo</label><input class="zf-input" name="fullName" [(ngModel)]="newUser.fullName" required /></div>
+          <div class="zf-field"><label>Correo</label><input class="zf-input" name="email" type="email" [(ngModel)]="newUser.email" required /></div>
+          <div class="zf-field"><label>Contraseña inicial</label><input class="zf-input" name="password" type="password" minlength="8" [(ngModel)]="newUser.password" required /></div>
+          <div class="zf-field"><label>Rol y accesos</label><select class="zf-select" name="role" [(ngModel)]="newUser.role">
+            @for (r of roles; track r) { <option [value]="r">{{ roleLabels[r] }}</option> }
+          </select></div>
+        </div>
+        <button class="zf-btn zf-btn--primary" type="submit" [disabled]="creating()">
+          {{ creating() ? 'Creando…' : '+ Crear usuario' }}
+        </button>
+      </form>
+
       @if (loading()) {
         <div class="zf-empty">Cargando usuarios…</div>
       } @else {
@@ -87,6 +102,11 @@ const ROLE_LABELS: Record<UserRole, string> = {
         gap: 0.75rem;
       }
 
+      .create-card { margin-bottom: 1rem; }
+      .create-card h2 { margin-top: 0; font-size: 1.05rem; }
+      .create-grid { display: grid; grid-template-columns: 1fr; gap: 0 1rem; }
+      @media (min-width: 760px) { .create-grid { grid-template-columns: repeat(2, 1fr); } }
+
       .user-card {
         display: flex;
         flex-wrap: wrap;
@@ -136,6 +156,10 @@ export class UsersComponent implements OnInit {
   protected readonly profiles = signal<Profile[]>([]);
   protected readonly loading = signal(true);
   protected readonly saving = signal<string | null>(null);
+  protected readonly creating = signal(false);
+  protected newUser: { fullName: string; email: string; password: string; role: UserRole } = {
+    fullName: '', email: '', password: '', role: 'tecnico',
+  };
   protected readonly roleLabels = ROLE_LABELS;
   protected readonly roles: UserRole[] = ['admin', 'recepcion', 'tecnico'];
   protected readonly currentUserId = this.auth.session()?.user.id ?? null;
@@ -159,6 +183,24 @@ export class UsersComponent implements OnInit {
       this.toast.error('No se pudo actualizar el usuario.');
     } finally {
       this.saving.set(null);
+    }
+  }
+
+  async createUser(): Promise<void> {
+    if (!this.newUser.fullName.trim() || !this.newUser.email.trim() || this.newUser.password.length < 8) {
+      this.toast.error('Completá los datos; la contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    this.creating.set(true);
+    try {
+      await this.profilesService.createUser(this.newUser);
+      this.toast.success(`Usuario ${this.newUser.email} creado.`);
+      this.newUser = { fullName: '', email: '', password: '', role: 'tecnico' };
+      this.profiles.set(await this.profilesService.list());
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo crear el usuario.');
+    } finally {
+      this.creating.set(false);
     }
   }
 }

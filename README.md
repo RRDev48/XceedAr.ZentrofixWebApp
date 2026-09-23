@@ -28,10 +28,17 @@ Alternativamente, en CI/CD (por ejemplo Vercel) podés definir las variables de 
    5. `0005_storage_attachments.sql` — crea el bucket privado `attachments` (fotos, comprobantes, garantías) y sus políticas.
    6. `0006_roles_and_tracking.sql` — restringe pagos/caja/configuración a rol Administrador, y crea la función pública `public_track_order` para el portal de seguimiento de clientes.
    7. `0007_reingresos.sql` — agrega `related_order_id` para vincular una orden de reingreso con la orden original.
+   8. `0008_short_links.sql` — enlaces cortos para compartir el seguimiento de una orden por WhatsApp.
+   9. `0009_short_links_reuse.sql` — permite reutilizar un enlace corto existente en vez de generar uno nuevo.
+   10. `0010_quotes_soft_delete.sql` — baja lógica de presupuestos (quedan en historial en vez de borrarse).
+   11. `0011_feedback_and_audit.sql` — encuesta de satisfacción post-entrega y ajuste de permisos sobre el historial de auditoría.
+   12. `0012_quote_items_inventory_link.sql` — vincula ítems de presupuesto con el inventario.
+   13. `0013_technician_assignments.sql` — asignación de técnicos a órdenes, con historial auditable.
+   14. `0014_role_restrictions.sql` — restringe a Técnico la edición de precios/descuentos y la eliminación de clientes, equipos y órdenes (Administrador y Recepción no cambian).
 3. Verificá en **Table Editor** que las tablas se crearon y que **RLS está activado** (candado verde) en cada una, y en **Storage** que exista el bucket `attachments` (privado).
 4. Recomendado (defensa adicional): en **Authentication → Sign In / Providers → Email**, desactivá "Allow new users to sign up". Los usuarios de Zentrofix se crean siempre desde **Authentication → Users → Add user**, nunca por autoregistro.
 
-Cada migración crea objetos nuevos: si necesitás volver a ejecutar todo desde cero en un proyecto ya inicializado, primero hay que limpiar el esquema `public` y el bucket `attachments`.
+Cada migración crea objetos nuevos: si necesitás volver a ejecutar todo desde cero en un proyecto ya inicializado, primero corré [`supabase/reset.sql`](supabase/reset.sql) en el SQL Editor para limpiar el esquema `public` y el bucket `attachments`, y después volvé a ejecutar las migraciones en orden. `reset.sql` es destructivo: borra todos los datos de la aplicación (no los usuarios de Supabase Auth). No correrlo nunca contra producción salvo que sea intencional.
 
 ## 4. Crear el primer usuario Administrador
 
@@ -128,7 +135,10 @@ Toda la información persiste en PostgreSQL (Supabase), protegida por Row Level 
 - La app es instalable (PWA): Service Worker con cacheo del shell y los assets, ícono de marca en varios tamaños, funciona offline para las pantallas ya visitadas. Se instala desde el navegador ("Agregar a la pantalla de inicio" / ícono de instalar en la barra de direcciones).
 - **Reingresos**: desde el detalle de cualquier orden, el botón "+ Crear reingreso" abre una orden nueva con el mismo cliente y equipo precargados, vinculada automáticamente a la orden original (`related_order_id`). El detalle de cada orden muestra el enlace a la orden original y/o a sus reingresos.
 
+**Permisos por rol (Técnico vs Recepción)**
+- Técnico conserva acceso operativo completo (clientes, equipos, órdenes, diagnóstico, inventario, WhatsApp) pero, a nivel de base de datos, no puede: editar precios/descuentos de una orden o presupuesto, ni eliminar/restaurar clientes, equipos u órdenes. Recepción y Administrador no tienen esa restricción.
+- La sección "Presupuesto" del detalle de orden y las pantallas de alta/edición de presupuestos quedan ocultas para Técnico en la interfaz, y bloqueadas también en la base de datos (`0014_role_restrictions.sql`) por si se intenta acceder directo por URL o API.
+
 ## 9. Qué queda pendiente
 
 - **WhatsApp Business API real**: desplegar la Edge Function `send-whatsapp` y cargar las credenciales de Meta cuando Zentrofix las tenga.
-- Diferenciación más fina de permisos entre Recepción y Técnico (hoy comparten el mismo nivel de acceso operativo, distinto del Administrador).
