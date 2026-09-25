@@ -64,7 +64,14 @@ import { ToastService } from '../../shared/components/toast/toast.service';
                 <option [value]="t">{{ movementLabels[t] }}</option>
               }
             </select>
-            <input class="zf-input" type="number" min="1" step="1" [(ngModel)]="movementQuantity" placeholder="Cantidad" />
+            <input
+              class="zf-input"
+              type="number"
+              [attr.min]="movementType === 'ajuste' ? null : 1"
+              step="1"
+              [(ngModel)]="movementQuantity"
+              placeholder="Cantidad"
+            />
             <input class="zf-input" [(ngModel)]="movementNote" placeholder="Nota (opcional)" />
             <button type="button" class="zf-btn zf-btn--primary" [disabled]="registering()" (click)="registerMovement()">
               @if (registering()) {
@@ -73,6 +80,9 @@ import { ToastService } from '../../shared/components/toast/toast.service';
               Registrar
             </button>
           </div>
+          @if (movementType === 'ajuste') {
+            <p class="zf-hint zf-hint--block">Ajuste: usá un valor positivo para sumar stock, o negativo para restar (ej. -3).</p>
+          }
         </section>
 
         <section class="zf-card">
@@ -84,7 +94,13 @@ import { ToastService } from '../../shared/components/toast/toast.service';
               @for (m of movements(); track m.id) {
                 <div class="movement-item">
                   <span class="movement-item__type">{{ movementLabels[m.movementType] }}</span>
-                  <span class="movement-item__qty">{{ m.movementType === 'ingreso' || m.movementType === 'ajuste' ? '+' : '−' }}{{ m.quantity }}</span>
+                  <span class="movement-item__qty">
+                    @if (m.movementType === 'ajuste') {
+                      {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
+                    } @else {
+                      {{ m.movementType === 'ingreso' ? '+' : '−' }}{{ m.quantity }}
+                    }
+                  </span>
                   <span class="movement-item__date">{{ m.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
                   @if (m.note) {
                     <span class="movement-item__note">{{ m.note }}</span>
@@ -246,19 +262,24 @@ export class InventoryDetailComponent implements OnInit {
   }
 
   async registerMovement(): Promise<void> {
-    if (this.registering() || !this.movementQuantity || this.movementQuantity <= 0) {
-      this.toast.error('Ingresá una cantidad válida.');
+    if (this.registering()) {
+      return;
+    }
+    const isAdjustment = this.movementType === 'ajuste';
+    const invalid = isAdjustment ? !this.movementQuantity : !this.movementQuantity || this.movementQuantity <= 0;
+    if (invalid) {
+      this.toast.error(isAdjustment ? 'Ingresá una cantidad distinta de cero.' : 'Ingresá una cantidad válida.');
       return;
     }
     this.registering.set(true);
     try {
-      await this.inventoryService.registerMovement(this.itemId, this.movementType, this.movementQuantity, this.movementNote);
+      await this.inventoryService.registerMovement(this.itemId, this.movementType, this.movementQuantity!, this.movementNote);
       this.movementQuantity = null;
       this.movementNote = '';
       await this.load();
       this.toast.success('Movimiento registrado correctamente.');
-    } catch {
-      this.toast.error('No se pudo registrar el movimiento.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo registrar el movimiento.');
     } finally {
       this.registering.set(false);
     }

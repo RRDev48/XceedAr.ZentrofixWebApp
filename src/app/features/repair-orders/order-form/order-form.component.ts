@@ -483,6 +483,15 @@ export class OrderFormComponent implements OnInit, CanComponentDeactivate {
   });
 
   async ngOnInit(): Promise<void> {
+    const preselectedCustomerId = this.route.snapshot.queryParamMap.get('clienteId');
+    if (preselectedCustomerId) {
+      const customer = await this.customersService.getById(preselectedCustomerId);
+      if (customer) {
+        await this.pickCustomer(customer);
+      }
+      return;
+    }
+
     const originalOrderId = this.route.snapshot.paramMap.get('originalOrderId');
     if (!originalOrderId) {
       return;

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { SupabaseClientService } from './supabase-client.service';
 import { AuthService } from '../auth/auth.service';
-import { CashMovement, CashMovementFormValue } from '../../models';
+import { CashMovement, CashMovementFormValue, PaymentMethod } from '../../models';
 
 interface CashMovementRow {
   id: string;
@@ -11,6 +11,8 @@ interface CashMovementRow {
   repair_order_id: string | null;
   created_by: string | null;
   created_at: string;
+  reverses_id: string | null;
+  payment_method: PaymentMethod | null;
 }
 
 function mapMovement(row: CashMovementRow): CashMovement {
@@ -22,6 +24,8 @@ function mapMovement(row: CashMovementRow): CashMovement {
     repairOrderId: row.repair_order_id,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    reversesId: row.reverses_id,
+    paymentMethod: row.payment_method,
   };
 }
 
@@ -56,6 +60,16 @@ export class CashService {
       })
       .select('*')
       .single();
+    if (error) {
+      throw new Error(error.message);
+    }
+    return mapMovement(data as CashMovementRow);
+  }
+
+  async reverseMovement(movementId: string): Promise<CashMovement> {
+    const { data, error } = await this.supabase.client.rpc('reverse_cash_movement', {
+      p_movement_id: movementId,
+    });
     if (error) {
       throw new Error(error.message);
     }

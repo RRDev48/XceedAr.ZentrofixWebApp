@@ -7,6 +7,7 @@ import { DevicesService } from '../../../core/services/devices.service';
 import { RepairOrdersService } from '../../../core/services/repair-orders.service';
 import { Customer, Device, DEVICE_TYPE_LABELS, RepairOrder, REPAIR_STATUS_LABELS } from '../../../models';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+import { buildWhatsAppLink } from '../../../shared/utils/phone.util';
 
 @Component({
   selector: 'app-customer-detail',
@@ -25,6 +26,12 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <p class="zf-subtitle">Cliente desde {{ customer()!.createdAt | date: 'dd/MM/yyyy' }}</p>
           </div>
           <div class="header-actions">
+            @if (whatsappLink()) {
+              <a [href]="whatsappLink()!" target="_blank" rel="noopener" class="zf-btn zf-btn--whatsapp">Abrir WhatsApp</a>
+            }
+            <a [routerLink]="['/ordenes/nueva']" [queryParams]="{ clienteId: customer()!.id }" class="zf-btn zf-btn--primary">
+              + Nueva orden
+            </a>
             <a [routerLink]="['/clientes', customer()!.id, 'editar']" class="zf-btn zf-btn--ghost">Editar</a>
             @if (canDelete()) {
               <button
@@ -121,6 +128,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
       .header-actions {
         display: flex;
+        flex-wrap: wrap;
         gap: 0.5rem;
       }
 
@@ -224,6 +232,13 @@ export class CustomerDetailComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly deleting = signal(false);
   protected readonly canDelete = computed(() => ['admin', 'recepcion'].includes(this.auth.profile()?.role ?? ''));
+  protected readonly whatsappLink = computed(() => {
+    const c = this.customer();
+    if (!c) {
+      return null;
+    }
+    return buildWhatsAppLink(c.whatsappPhone, `Hola ${c.firstName}, te escribimos de Zentrofix.`);
+  });
   protected readonly deviceTypeLabels = DEVICE_TYPE_LABELS;
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
 

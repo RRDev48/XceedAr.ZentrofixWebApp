@@ -41,6 +41,8 @@ export interface CashMovement {
   repairOrderId: string | null;
   createdBy: string | null;
   createdAt: string;
+  reversesId: string | null;
+  paymentMethod: PaymentMethod | null;
 }
 
 export interface CashMovementFormValue {

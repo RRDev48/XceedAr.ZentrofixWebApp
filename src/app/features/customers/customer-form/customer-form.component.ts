@@ -66,11 +66,30 @@ import { CanComponentDeactivate } from '../../../core/guards/unsaved-changes.gua
 
           @if (duplicates().length > 0) {
             <div class="duplicate-warning">
-              ⚠️ Ya existe{{ duplicates().length > 1 ? 'n' : '' }} un cliente con ese teléfono o DNI:
-              @for (d of duplicates(); track d.id) {
-                <a [routerLink]="['/clientes', d.id]">{{ d.firstName }} {{ d.lastName }}</a>
+              <div>
+                ⚠️ Ya existe{{ duplicates().length > 1 ? 'n' : '' }} un cliente con ese teléfono o DNI:
+                @for (d of duplicates(); track d.id) {
+                  <a [routerLink]="['/clientes', d.id]">{{ d.firstName }} {{ d.lastName }}</a>
+                }
+                . Verificá antes de continuar para no duplicar el registro.
+              </div>
+              @if (isEdit()) {
+                <div class="duplicate-warning__actions">
+                  @for (d of duplicates(); track d.id) {
+                    <button
+                      type="button"
+                      class="zf-btn zf-btn--ghost zf-btn--sm"
+                      [disabled]="merging() === d.id"
+                      (click)="mergeWith(d)"
+                    >
+                      @if (merging() === d.id) {
+                        <span class="zf-spinner"></span>
+                      }
+                      Fusionar con {{ d.firstName }} {{ d.lastName }}
+                    </button>
+                  }
+                </div>
               }
-              . Verificá antes de continuar para no duplicar el registro.
             </div>
           }
 
@@ -130,6 +149,13 @@ import { CanComponentDeactivate } from '../../../core/guards/unsaved-changes.gua
         font-weight: 600;
       }
 
+      .duplicate-warning__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.6rem;
+      }
+
       .form-actions {
         display: flex;
         justify-content: flex-end;
@@ -151,6 +177,7 @@ export class CustomerFormComponent implements OnInit, CanComponentDeactivate {
   protected readonly loadingRecord = signal(false);
   protected readonly duplicates = signal<CustomerMatch[]>([]);
   protected readonly isEdit = signal(false);
+  protected readonly merging = signal<string | null>(null);
 
   private customerId: string | null = null;
   private savedSuccessfully = false;
@@ -208,6 +235,36 @@ export class CustomerFormComponent implements OnInit, CanComponentDeactivate {
     }
   }
 
+  async mergeWith(duplicate: CustomerMatch): Promise<void> {
+    if (!this.customerId || this.merging()) {
+      return;
+    }
+    const currentName = `${this.form.controls.firstName.value} ${this.form.controls.lastName.value}`.trim();
+    const confirmed = window.confirm(
+      `¿Fusionar "${duplicate.firstName} ${duplicate.lastName}" dentro de "${currentName}"? ` +
+        `Los equipos y órdenes de "${duplicate.firstName} ${duplicate.lastName}" van a pasar a este cliente, y ese registro va a quedar eliminado (podés restaurarlo luego desde Papelera). Esta acción no se puede deshacer desde acá.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    this.merging.set(duplicate.id);
+    try {
+      const merged = await this.customersService.merge(this.customerId, duplicate.id);
+      this.form.patchValue({
+        dni: merged.dni ?? '',
+        email: merged.email ?? '',
+        address: merged.address ?? '',
+        notes: merged.notes ?? '',
+      });
+      this.duplicates.update((list) => list.filter((d) => d.id !== duplicate.id));
+      this.toast.success(`Cliente fusionado. Los equipos y órdenes de "${duplicate.firstName} ${duplicate.lastName}" ya están acá.`);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo fusionar el cliente.');
+    } finally {
+      this.merging.set(null);
+    }
+  }
+
   async submit(): Promise<void> {
     if (this.saving()) {
       return;
@@ -239,8 +296,8 @@ export class CustomerFormComponent implements OnInit, CanComponentDeactivate {
       this.savedSuccessfully = true;
       this.toast.success(this.customerId ? 'Cliente actualizado correctamente.' : 'Cliente creado correctamente.');
       await this.router.navigate(['/clientes', customer.id]);
-    } catch (err) {
-      this.toast.error('No se pudo guardar el cliente. Intentá nuevamente.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo guardar el cliente. Intentá nuevamente.');
     } finally {
       this.saving.set(false);
     }

@@ -10,6 +10,8 @@ export interface Customer {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  /** Fecha de la última orden de reparación (received_at), si tiene alguna. Solo lo completan listPage()/listWithLastOrder(). */
+  lastOrderAt?: string | null;
 }
 
 export interface CustomerFormValue {

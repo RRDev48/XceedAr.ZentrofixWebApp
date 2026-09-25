@@ -90,6 +90,21 @@ export class InventoryService {
     return { items: (data as InventoryItemRow[]).map(mapItem), total: count ?? 0 };
   }
 
+  /** Valor total del inventario a costo (stock actual × costo unitario), sobre todos los ítems no eliminados. */
+  async getTotalValue(): Promise<number> {
+    const { data, error } = await this.supabase.client
+      .from('inventory_items')
+      .select('stock_quantity, unit_cost')
+      .is('deleted_at', null);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return ((data ?? []) as Pick<InventoryItemRow, 'stock_quantity' | 'unit_cost'>[]).reduce(
+      (sum, row) => sum + Number(row.stock_quantity) * Number(row.unit_cost),
+      0,
+    );
+  }
+
   async getById(id: string): Promise<InventoryItem | null> {
     const { data, error } = await this.supabase.client.from('inventory_items').select('*').eq('id', id).maybeSingle();
     if (error) {

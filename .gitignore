@@ -56,3 +56,7 @@ Thumbs.db
 
 # Cache local del Supabase CLI (npx supabase ...), no es parte del proyecto
 /supabase/.temp
+
+# Esquema de base de datos: se mantiene solo en local, no en el repositorio.
+/supabase/migrations
+/supabase/reset.sql

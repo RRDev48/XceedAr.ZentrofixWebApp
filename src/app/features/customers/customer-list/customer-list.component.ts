@@ -6,6 +6,8 @@ import { CustomersService } from '../../../core/services/customers.service';
 import { Customer } from '../../../models';
 import { ToastService } from '../../../shared/components/toast/toast.service';
 
+type InactivityFilter = 'todos' | '30' | '60' | '90' | '180';
+
 @Component({
   selector: 'app-customer-list',
   standalone: true,
@@ -26,13 +28,20 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           type="search"
           placeholder="Buscar por nombre, WhatsApp o DNI…"
           [(ngModel)]="search"
-          (ngModelChange)="onSearchChange()"
+          (ngModelChange)="onFilterChange()"
         />
+        <select class="zf-select" [(ngModel)]="inactivityFilter" (ngModelChange)="onFilterChange()">
+          <option value="todos">Todos</option>
+          <option value="30">Inactivos +30 días</option>
+          <option value="60">Inactivos +60 días</option>
+          <option value="90">Inactivos +90 días</option>
+          <option value="180">Inactivos +180 días</option>
+        </select>
       </div>
 
       @if (loading()) {
         <div class="zf-empty">Cargando clientes…</div>
-      } @else if (customers().length === 0) {
+      } @else if (pagedCustomers().length === 0) {
         <div class="zf-empty zf-card">No se encontraron clientes con ese criterio.</div>
       } @else {
         <div class="zf-table-wrap desktop-only">
@@ -42,17 +51,17 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 <th>Nombre</th>
                 <th>WhatsApp</th>
                 <th>DNI</th>
-                <th>Alta</th>
+                <th>Última orden</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              @for (c of customers(); track c.id) {
+              @for (c of pagedCustomers(); track c.id) {
                 <tr>
                   <td>{{ c.firstName }} {{ c.lastName }}</td>
                   <td>{{ c.whatsappPhone }}</td>
                   <td>{{ c.dni || '—' }}</td>
-                  <td>{{ c.createdAt | date: 'dd/MM/yyyy' }}</td>
+                  <td>{{ c.lastOrderAt ? (c.lastOrderAt | date: 'dd/MM/yyyy') : 'Nunca' }}</td>
                   <td>
                     <a [routerLink]="['/clientes', c.id]" class="zf-btn zf-btn--ghost zf-btn--sm">Ver</a>
                   </td>
@@ -63,13 +72,14 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         </div>
 
         <div class="card-list mobile-only">
-          @for (c of customers(); track c.id) {
+          @for (c of pagedCustomers(); track c.id) {
             <a [routerLink]="['/clientes', c.id]" class="customer-card zf-card">
               <div class="customer-card__name">{{ c.firstName }} {{ c.lastName }}</div>
               <div class="customer-card__meta">{{ c.whatsappPhone }}</div>
               @if (c.dni) {
                 <div class="customer-card__meta">DNI {{ c.dni }}</div>
               }
+              <div class="customer-card__meta">Última orden: {{ c.lastOrderAt ? (c.lastOrderAt | date: 'dd/MM/yyyy') : 'Nunca' }}</div>
             </a>
           }
         </div>
@@ -104,6 +114,18 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
       .search-card {
         margin-bottom: 1rem;
         padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      @media (min-width: 640px) {
+        .search-card {
+          flex-direction: row;
+        }
+        .search-card .zf-select {
+          width: 220px;
+        }
       }
 
       .desktop-only {
@@ -165,22 +187,53 @@ export class CustomerListComponent implements OnInit {
 
   protected readonly pageSize = 25;
   protected readonly page = signal(1);
-  protected readonly totalCount = signal(0);
-  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
+  protected readonly serverTotal = signal(0);
 
+  // "inactivityFilter" compara la fecha de la última orden contra una cantidad de
+  // días: no es un filtro simple de columna, así que cuando está activo se trae
+  // todo lo que matchea la búsqueda y se pagina en memoria. Mismo patrón que
+  // "onlyStale" en órdenes y "onlyLowStock" en inventario.
   protected readonly customers = signal<Customer[]>([]);
   protected readonly loading = signal(true);
   protected search = '';
+  protected inactivityFilter: InactivityFilter = 'todos';
   private searchTimeout?: ReturnType<typeof setTimeout>;
+
+  protected readonly filteredCustomers = computed(() => {
+    if (this.inactivityFilter === 'todos') {
+      return this.customers();
+    }
+    const days = Number(this.inactivityFilter);
+    const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+    return this.customers().filter((c) => !c.lastOrderAt || new Date(c.lastOrderAt).getTime() < threshold);
+  });
+
+  protected readonly totalCount = computed(() =>
+    this.isServerPaged() ? this.serverTotal() : this.filteredCustomers().length,
+  );
+
+  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
+
+  protected readonly pagedCustomers = computed(() => {
+    if (this.isServerPaged()) {
+      return this.filteredCustomers();
+    }
+    const from = (this.page() - 1) * this.pageSize;
+    return this.filteredCustomers().slice(from, from + this.pageSize);
+  });
 
   async ngOnInit(): Promise<void> {
     await this.load();
   }
 
-  onSearchChange(): void {
+  onFilterChange(): void {
     this.page.set(1);
     clearTimeout(this.searchTimeout);
     this.searchTimeout = setTimeout(() => this.load(), 300);
+  }
+
+  private isServerPaged(): boolean {
+    return this.inactivityFilter === 'todos';
   }
 
   protected nextPage(): void {
@@ -188,7 +241,9 @@ export class CustomerListComponent implements OnInit {
       return;
     }
     this.page.update((p) => p + 1);
-    this.load();
+    if (this.isServerPaged()) {
+      this.load();
+    }
   }
 
   protected prevPage(): void {
@@ -196,15 +251,21 @@ export class CustomerListComponent implements OnInit {
       return;
     }
     this.page.update((p) => p - 1);
-    this.load();
+    if (this.isServerPaged()) {
+      this.load();
+    }
   }
 
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const { customers, total } = await this.customersService.listPage(this.search, this.page(), this.pageSize);
-      this.customers.set(customers);
-      this.totalCount.set(total);
+      if (this.isServerPaged()) {
+        const { customers, total } = await this.customersService.listPage(this.search, this.page(), this.pageSize);
+        this.customers.set(customers);
+        this.serverTotal.set(total);
+      } else {
+        this.customers.set(await this.customersService.listWithLastOrder(this.search));
+      }
     } catch {
       this.toast.error('No se pudieron cargar los clientes.');
     } finally {

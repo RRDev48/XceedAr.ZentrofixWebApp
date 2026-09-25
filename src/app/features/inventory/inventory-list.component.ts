@@ -20,23 +20,32 @@ import { ToastService } from '../../shared/components/toast/toast.service';
         <a routerLink="/inventario/nuevo" class="zf-btn zf-btn--primary">+ Nuevo ítem</a>
       </div>
 
+      <div class="zf-card value-card">
+        <span class="value-card__label">Valor de inventario (a costo)</span>
+        <span class="value-card__value">{{ totalValue() | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}</span>
+      </div>
+
       <div class="zf-card search-card">
         <input
           class="zf-input"
           type="search"
           placeholder="Buscar por nombre o SKU…"
           [(ngModel)]="search"
-          (ngModelChange)="onSearchChange()"
+          (ngModelChange)="onFilterChange()"
         />
+        <label class="low-stock-toggle">
+          <input type="checkbox" [(ngModel)]="onlyLowStock" (ngModelChange)="onFilterChange()" />
+          Mostrar solo stock crítico
+        </label>
       </div>
 
       @if (loading()) {
         <div class="zf-empty">Cargando inventario…</div>
-      } @else if (items().length === 0) {
+      } @else if (pagedItems().length === 0) {
         <div class="zf-empty zf-card">No se encontraron ítems con ese criterio.</div>
       } @else {
         <div class="card-list">
-          @for (item of items(); track item.id) {
+          @for (item of pagedItems(); track item.id) {
             <a [routerLink]="['/inventario', item.id]" class="zf-card item-card">
               <div class="item-card__main">
                 <div class="item-card__name">{{ item.name }}</div>
@@ -80,9 +89,42 @@ import { ToastService } from '../../shared/components/toast/toast.service';
         font-size: 0.9rem;
       }
 
+      .value-card {
+        margin-bottom: 1rem;
+        padding: 0.85rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+
+      .value-card__label {
+        font-size: 0.75rem;
+        color: var(--zf-text-muted);
+        font-weight: 600;
+      }
+
+      .value-card__value {
+        font-family: var(--zf-font-heading);
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--zf-text);
+      }
+
       .search-card {
         margin-bottom: 1rem;
         padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .low-stock-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        color: var(--zf-text-secondary);
+        cursor: pointer;
       }
 
       .card-list {
@@ -151,22 +193,50 @@ export class InventoryListComponent implements OnInit {
 
   protected readonly pageSize = 25;
   protected readonly page = signal(1);
-  protected readonly totalCount = signal(0);
-  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
+  protected readonly serverTotal = signal(0);
+  protected readonly totalValue = signal(0);
 
+  // "onlyLowStock" se calcula en el cliente (no es un filtro simple de columna
+  // contra un valor fijo, compara dos columnas entre sí): cuando está activo no
+  // se pagina en el servidor, se trae todo lo que matchea la búsqueda y se pagina
+  // en memoria sobre el resultado ya filtrado. Mismo patrón que "onlyStale" en
+  // el listado de órdenes.
   protected readonly items = signal<InventoryItem[]>([]);
   protected readonly loading = signal(true);
   protected search = '';
+  protected onlyLowStock = false;
   private searchTimeout?: ReturnType<typeof setTimeout>;
 
+  protected readonly filteredItems = computed(() =>
+    this.onlyLowStock ? this.items().filter((i) => i.stockQuantity <= i.minimumStock) : this.items(),
+  );
+
+  protected readonly totalCount = computed(() =>
+    this.isServerPaged() ? this.serverTotal() : this.filteredItems().length,
+  );
+
+  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
+
+  protected readonly pagedItems = computed(() => {
+    if (this.isServerPaged()) {
+      return this.filteredItems();
+    }
+    const from = (this.page() - 1) * this.pageSize;
+    return this.filteredItems().slice(from, from + this.pageSize);
+  });
+
   async ngOnInit(): Promise<void> {
-    await this.load();
+    await Promise.all([this.load(), this.loadTotalValue()]);
   }
 
-  onSearchChange(): void {
+  onFilterChange(): void {
     this.page.set(1);
     clearTimeout(this.searchTimeout);
     this.searchTimeout = setTimeout(() => this.load(), 300);
+  }
+
+  private isServerPaged(): boolean {
+    return !this.onlyLowStock;
   }
 
   protected nextPage(): void {
@@ -174,7 +244,9 @@ export class InventoryListComponent implements OnInit {
       return;
     }
     this.page.update((p) => p + 1);
-    this.load();
+    if (this.isServerPaged()) {
+      this.load();
+    }
   }
 
   protected prevPage(): void {
@@ -182,15 +254,29 @@ export class InventoryListComponent implements OnInit {
       return;
     }
     this.page.update((p) => p - 1);
-    this.load();
+    if (this.isServerPaged()) {
+      this.load();
+    }
+  }
+
+  private async loadTotalValue(): Promise<void> {
+    try {
+      this.totalValue.set(await this.inventoryService.getTotalValue());
+    } catch {
+      // Dato secundario: si falla, no bloquea el resto de la pantalla.
+    }
   }
 
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const { items, total } = await this.inventoryService.listPage(this.search, this.page(), this.pageSize);
-      this.items.set(items);
-      this.totalCount.set(total);
+      if (this.isServerPaged()) {
+        const { items, total } = await this.inventoryService.listPage(this.search, this.page(), this.pageSize);
+        this.items.set(items);
+        this.serverTotal.set(total);
+      } else {
+        this.items.set(await this.inventoryService.list(this.search));
+      }
     } catch {
       this.toast.error('No se pudo cargar el inventario.');
     } finally {

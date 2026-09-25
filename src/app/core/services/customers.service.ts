@@ -96,7 +96,31 @@ export class CustomersService {
     if (error) {
       throw new Error(error.message);
     }
-    return { customers: (data as CustomerRow[]).map(mapCustomer), total: count ?? 0 };
+    const customers = await this.attachLastOrderDates((data as CustomerRow[]).map(mapCustomer));
+    return { customers, total: count ?? 0 };
+  }
+
+  /** Igual que list(), pero además trae la fecha de la última orden de cada cliente. Se usa cuando el filtro
+   * de "inactivos" está activo y hay que traer todo lo que matchea la búsqueda para filtrar en memoria. */
+  async listWithLastOrder(search: string): Promise<Customer[]> {
+    return this.attachLastOrderDates(await this.list(search));
+  }
+
+  private async attachLastOrderDates(customers: Customer[]): Promise<Customer[]> {
+    if (!customers.length) {
+      return customers;
+    }
+    const { data, error } = await this.supabase.client
+      .from('customer_last_order')
+      .select('customer_id, last_order_at')
+      .in('customer_id', customers.map((c) => c.id));
+    if (error) {
+      throw new Error(error.message);
+    }
+    const lastOrderByCustomer = new Map(
+      ((data ?? []) as { customer_id: string; last_order_at: string }[]).map((row) => [row.customer_id, row.last_order_at]),
+    );
+    return customers.map((c) => ({ ...c, lastOrderAt: lastOrderByCustomer.get(c.id) ?? null }));
   }
 
   async getById(id: string): Promise<Customer | null> {
@@ -194,5 +218,18 @@ export class CustomersService {
     if (error) {
       throw new Error(error.message);
     }
+  }
+
+  /** Fusiona keepId y removeId en un solo cliente: mueve equipos/órdenes a keepId, completa sus campos
+   * vacíos con los de removeId, y da de baja lógica a removeId. */
+  async merge(keepId: string, removeId: string): Promise<Customer> {
+    const { data, error } = await this.supabase.client.rpc('merge_customers', {
+      p_keep_id: keepId,
+      p_remove_id: removeId,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return mapCustomer(data as CustomerRow);
   }
 }
