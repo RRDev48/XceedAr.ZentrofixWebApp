@@ -6,6 +6,7 @@ export interface Profile {
   email: string;
   role: UserRole;
   active: boolean;
+  workshopId: string;
   createdAt: string;
   updatedAt: string;
 }

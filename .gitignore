@@ -53,3 +53,6 @@ Thumbs.db
 
 # Material de marca sin procesar (logos ya copiados a public/assets/branding, PDFs de referencia)
 /01_Branding
+
+# Cache local del Supabase CLI (npx supabase ...), no es parte del proyecto
+/supabase/.temp

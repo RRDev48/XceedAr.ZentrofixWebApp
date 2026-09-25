@@ -8,6 +8,7 @@ interface ProfileRow {
   email: string;
   role: UserRole;
   active: boolean;
+  workshop_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +20,7 @@ function mapProfile(row: ProfileRow): Profile {
     email: row.email,
     role: row.role,
     active: row.active,
+    workshopId: row.workshop_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

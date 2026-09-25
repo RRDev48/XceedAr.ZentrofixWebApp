@@ -35,21 +35,34 @@ Alternativamente, en CI/CD (por ejemplo Vercel) podés definir las variables de 
    12. `0012_quote_items_inventory_link.sql` — vincula ítems de presupuesto con el inventario.
    13. `0013_technician_assignments.sql` — asignación de técnicos a órdenes, con historial auditable.
    14. `0014_role_restrictions.sql` — restringe a Técnico la edición de precios/descuentos y la eliminación de clientes, equipos y órdenes (Administrador y Recepción no cambian).
+   15. `0015_workshops_core.sql` — **multi-tenant**: tabla `workshops`, `workshop_id` en todas las tablas de negocio, funciones/triggers para completarlo y bloquear su edición.
+   16. `0016_workshop_constraints.sql` — convierte los FKs entre tablas de negocio en FKs compuestos `(columna, workshop_id)`, y corrige constraints de unicidad que antes eran globales (`settings.key`, `inventory_items.sku`, contador de código de orden).
+   17. `0017_workshop_rls.sql` — reescribe todas las policies para que ningún usuario vea ni opere sobre datos de otro taller.
+   18. `0018_workshop_functions.sql` — ajusta las funciones que corren con privilegios elevados (alta de usuario, auditoría, encuesta pública, asignación de técnicos, generación de código de orden) para que respeten el taller correspondiente.
+   19. `0019_workshop_storage.sql` — aísla el bucket `attachments` por taller (el path pasa a ser `{workshop_id}/{orden}/{archivo}`).
 3. Verificá en **Table Editor** que las tablas se crearon y que **RLS está activado** (candado verde) en cada una, y en **Storage** que exista el bucket `attachments` (privado).
 4. Recomendado (defensa adicional): en **Authentication → Sign In / Providers → Email**, desactivá "Allow new users to sign up". Los usuarios de Zentrofix se crean siempre desde **Authentication → Users → Add user**, nunca por autoregistro.
 
 Cada migración crea objetos nuevos: si necesitás volver a ejecutar todo desde cero en un proyecto ya inicializado, primero corré [`supabase/reset.sql`](supabase/reset.sql) en el SQL Editor para limpiar el esquema `public` y el bucket `attachments`, y después volvé a ejecutar las migraciones en orden. `reset.sql` es destructivo: borra todos los datos de la aplicación (no los usuarios de Supabase Auth). No correrlo nunca contra producción salvo que sea intencional.
 
-## 4. Crear el primer usuario Administrador
+**Si el proyecto ya tenía adjuntos reales subidos antes de la migración 0019** (fotos, comprobantes, garantías), esos archivos quedan con el path viejo (`{orden}/{archivo}`) y dejan de matchear las policies nuevas del bucket. Hay que moverlos a `{workshop_id}/{orden}/{archivo}` (el `workshop_id` del taller "Zentrofix" que crea automáticamente la migración 0015) con la Storage API o a mano desde el dashboard — esto no se puede hacer con SQL.
 
-No hay una pantalla de "crear cuenta" (por diseño: Zentrofix es un local único con un Administrador). Para crear el primer usuario:
+## 4. Crear un taller (workshop) y su primer usuario Administrador
 
-1. En el dashboard de Supabase, andá a **Authentication → Users → Add user**.
-2. Cargá el correo y una contraseña (podés marcar "Auto Confirm User" para no depender del correo de confirmación).
-3. Al crear el usuario, un trigger de la base de datos (`handle_new_auth_user`) genera automáticamente su fila en `profiles` con `role = 'admin'` y `active = true`.
-4. Ingresá a la aplicación con ese correo y contraseña.
+Zentrofix es multi-tenant: cada taller es un cliente independiente y aislado del resto (ningún dato cruza entre talleres). No hay pantalla pública de alta — un taller nuevo se crea siempre con `scripts/admin/provision-workshop.js`, corrido por vos con la `service_role` key (nunca desde el navegador de un cliente):
 
-Para usuarios de "Recepción" o "Técnico": creá la cuenta igual que la del Administrador (**Authentication → Users → Add user**) y después andá a **Usuarios** dentro de la aplicación (visible solo para Administradores, en `/configuracion/usuarios`) para asignarle el rol y activarla. Si el registro público llegara a estar habilitado, cualquier cuenta creada por esa vía nace **inactiva** y sin acceso a ningún dato hasta que un Administrador la active desde esa misma pantalla.
+```bash
+SUPABASE_URL=https://tu-proyecto.supabase.co SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key \
+  node scripts/admin/provision-workshop.js \
+  --name "Taller Acme" --slug acme \
+  --admin-name "Juan Pérez" --admin-email juan@acme.com
+```
+
+Esto crea la fila en `workshops` (el `slug` — minúsculas/números, 2 a 12 caracteres — queda incrustado en el código de cada orden de ese taller, ej. `ZF-ACME-2026-000001`) y el primer usuario, con rol Administrador y activo. El script imprime una contraseña temporal si no le pasás `--admin-password`; pasásela al cliente para que la cambie en su primer ingreso.
+
+**Importante**: `handle_new_auth_user` ahora exige `workshop_id` en los metadatos del usuario — crear un usuario desde **Authentication → Users → Add user** en el dashboard de Supabase (sin pasar por el script o por `admin-users`) va a fallar. Usá siempre `provision-workshop.js` para el primer usuario de un taller nuevo.
+
+Para sumar usuarios a un taller que ya existe: andá a **Usuarios** dentro de la aplicación (`/configuracion/usuarios`, solo Administradores) y usá "Dar de alta un usuario" — internamente llama a la Edge Function `admin-users`, que asigna automáticamente el mismo `workshop_id` del Administrador que lo está creando (un Administrador nunca puede crear un usuario en otro taller).
 
 Diferencia de permisos entre roles (implementada a nivel de base de datos, no solo en la interfaz):
 - **Administrador**: acceso total, incluyendo pagos, caja, reportes y gestión de usuarios.
@@ -91,8 +104,10 @@ src/app/
     diagnostics/  warranties/  → cubiertas hoy dentro de repair-orders; carpetas de referencia para separarlas más adelante si crecen
   models/         interfaces TypeScript compartidas
 supabase/
-  migrations/     migraciones SQL versionadas (0001 a 0006)
-  functions/      Edge Functions (send-whatsapp: arquitectura para WhatsApp Business API, no desplegada todavía)
+  migrations/     migraciones SQL versionadas (0001 a 0019)
+  functions/      Edge Functions (admin-users: alta de usuarios; send-whatsapp: arquitectura para WhatsApp Business API, no desplegada todavía)
+scripts/
+  admin/          scripts locales con la service_role key (provision-workshop.js: alta de un taller nuevo)
 ```
 
 ## 8. Qué funciona en esta entrega (Etapas 1 a 5)
@@ -107,7 +122,7 @@ supabase/
 - Equipos: alta, edición, datos sensibles (PIN/patrón) separados de los listados.
 
 **Órdenes de reparación**
-- Alta guiada (cliente → equipo → orden), código automático `ZF-AÑO-NNNNNN` generado por la base de datos.
+- Alta guiada (cliente → equipo → orden), código automático `ZF-{SLUG del taller}-AÑO-NNNNNN` generado por la base de datos (único por taller, ver sección 4).
 - Listado con búsqueda y filtros (estado, pago, marca, fechas); detalle con diagnóstico, costos, cambio de estado con historial y hora.
 - **Presupuestos**: ítems con cantidad/costo/precio, mano de obra, descuento, vigencia; marcar como enviado; registrar aprobación o rechazo del cliente (sincroniza el precio de la orden automáticamente al aprobar).
 - **Pagos**: se registran contra la orden (efectivo, transferencia, tarjeta, billetera virtual); actualizan el saldo pendiente y generan su ingreso en caja solos.
@@ -139,6 +154,13 @@ Toda la información persiste en PostgreSQL (Supabase), protegida por Row Level 
 - Técnico conserva acceso operativo completo (clientes, equipos, órdenes, diagnóstico, inventario, WhatsApp) pero, a nivel de base de datos, no puede: editar precios/descuentos de una orden o presupuesto, ni eliminar/restaurar clientes, equipos u órdenes. Recepción y Administrador no tienen esa restricción.
 - La sección "Presupuesto" del detalle de orden y las pantallas de alta/edición de presupuestos quedan ocultas para Técnico en la interfaz, y bloqueadas también en la base de datos (`0014_role_restrictions.sql`) por si se intenta acceder directo por URL o API.
 
+**Multi-tenant (varios talleres en el mismo proyecto)**
+- Zentrofix pasó de ser de un solo taller a soportar múltiples talleres (workshops) aislados entre sí en la misma base de datos, vía `workshop_id` + Row Level Security en todas las tablas (migraciones `0015` a `0019`). Ningún taller puede ver, editar ni referenciar datos de otro — reforzado con FKs compuestos, no solo con las policies.
+- Alta de un taller nuevo: `scripts/admin/provision-workshop.js` (ver sección 4). No hay ni va a haber un panel que cruce datos entre talleres — cada uno es una caja negra independiente; para soporte/debug entre talleres alcanza con el SQL Editor de Supabase Studio (corre como `postgres`, sin RLS).
+- No hay branding por taller todavía: la interfaz logueada sigue mostrando "Zentrofix" para todos. El portal público de seguimiento y los mensajes de WhatsApp tampoco muestran el nombre del taller. Si hace falta más adelante, ya existe `workshops.name` para usarlo ahí.
+- Tampoco hay subdominios ni dominio propio por cliente: todos los talleres entran por la misma URL y el taller se resuelve por el usuario logueado.
+
 ## 9. Qué queda pendiente
 
 - **WhatsApp Business API real**: desplegar la Edge Function `send-whatsapp` y cargar las credenciales de Meta cuando Zentrofix las tenga.
+- **Verificación de aislamiento multi-tenant**: antes de subir clientes reales, sembrar 2 talleres de prueba y correr la checklist de verificación (ver plan de implementación) — RLS por tabla, FKs compuestos, colisión de códigos de orden, aislamiento de Storage, etc.

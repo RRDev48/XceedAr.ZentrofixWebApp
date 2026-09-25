@@ -9,6 +9,7 @@ interface ProfileRow {
   email: string;
   role: UserRole;
   active: boolean;
+  workshop_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -20,6 +21,7 @@ function mapProfile(row: ProfileRow): Profile {
     email: row.email,
     role: row.role,
     active: row.active,
+    workshopId: row.workshop_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -58,7 +60,7 @@ export class AuthService {
   private async loadProfile(userId: string): Promise<void> {
     const { data, error } = await this.supabase.client
       .from('profiles')
-      .select('id, full_name, email, role, active, created_at, updated_at')
+      .select('id, full_name, email, role, active, workshop_id, created_at, updated_at')
       .eq('id', userId)
       .maybeSingle();
 

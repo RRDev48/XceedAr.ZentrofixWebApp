@@ -53,7 +53,11 @@ export class AttachmentsService {
   }
 
   async upload(repairOrderId: string, file: File, category: AttachmentCategory): Promise<Attachment> {
-    const path = `${repairOrderId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const workshopId = this.auth.profile()?.workshopId;
+    if (!workshopId) {
+      throw new Error('No se pudo determinar el taller del usuario actual.');
+    }
+    const path = `${workshopId}/${repairOrderId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
     const { error: uploadError } = await this.supabase.client.storage.from(BUCKET).upload(path, file, {
       contentType: file.type || undefined,
