@@ -1,8 +1,15 @@
-export type AttachmentCategory = 'foto_recepcion' | 'foto_diagnostico' | 'comprobante' | 'garantia' | 'otro';
+export type AttachmentCategory =
+  | 'foto_recepcion'
+  | 'foto_diagnostico'
+  | 'orden_trabajo'
+  | 'comprobante'
+  | 'garantia'
+  | 'otro';
 
 export const ATTACHMENT_CATEGORY_LABELS: Record<AttachmentCategory, string> = {
   foto_recepcion: 'Foto de recepción',
   foto_diagnostico: 'Foto de diagnóstico',
+  orden_trabajo: 'Orden de trabajo',
   comprobante: 'Comprobante digital',
   garantia: 'Garantía',
   otro: 'Otro',

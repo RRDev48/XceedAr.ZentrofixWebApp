@@ -8,6 +8,16 @@ export const DEVICE_TYPE_LABELS: Record<DeviceType, string> = {
   otro: 'Otro',
 };
 
+/** Marcas sugeridas por tipo de equipo, para autocompletar el campo "Marca" sin
+ * dejar de aceptar cualquier otra que no esté en la lista (input + datalist, no un select). */
+export const DEVICE_TYPE_BRANDS: Record<DeviceType, string[]> = {
+  celular: ['Samsung', 'Apple', 'Motorola', 'Xiaomi', 'Huawei', 'LG', 'Nokia', 'Oppo', 'ZTE', 'Alcatel'],
+  tablet: ['Samsung', 'Apple', 'Lenovo', 'Huawei', 'Amazon', 'Xiaomi'],
+  notebook: ['HP', 'Dell', 'Lenovo', 'Asus', 'Acer', 'Apple', 'Samsung', 'MSI'],
+  consola: ['Sony', 'Microsoft', 'Nintendo'],
+  otro: [],
+};
+
 export interface Device {
   id: string;
   customerId: string;

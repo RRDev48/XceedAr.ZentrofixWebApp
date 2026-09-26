@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { DevicesService } from '../../core/services/devices.service';
 import { CustomersService } from '../../core/services/customers.service';
-import { DeviceType, DEVICE_TYPE_LABELS } from '../../models';
+import { DeviceType, DEVICE_TYPE_BRANDS, DEVICE_TYPE_LABELS } from '../../models';
 import { imeiOrSerialValidator } from '../../shared/validators/custom-validators';
 import { firstErrorMessage } from '../../shared/utils/form-errors.util';
 import { ToastService } from '../../shared/components/toast/toast.service';
@@ -40,9 +40,26 @@ import { CanComponentDeactivate } from '../../core/guards/unsaved-changes.guard'
           </div>
 
           <div class="zf-grid-2">
-            <div class="zf-field">
+            <div class="zf-field brand-field">
               <label for="brand">Marca *</label>
-              <input id="brand" class="zf-input" formControlName="brand" placeholder="Samsung, Motorola, Apple…" />
+              <input
+                id="brand"
+                class="zf-input"
+                formControlName="brand"
+                placeholder="Samsung, Motorola, Apple…"
+                autocomplete="off"
+                (focus)="showBrandSuggestions.set(true)"
+                (blur)="showBrandSuggestions.set(false)"
+              />
+              @if (showBrandSuggestions() && brandSuggestions().length > 0) {
+                <ul class="brand-suggestions">
+                  @for (b of brandSuggestions(); track b) {
+                    <li>
+                      <button type="button" (mousedown)="$event.preventDefault(); selectBrand(b)">{{ b }}</button>
+                    </li>
+                  }
+                </ul>
+              }
               @if (form.controls.brand.invalid && form.controls.brand.touched) {
                 <span class="zf-error">{{ firstErrorMessage(form.controls.brand.errors) }}</span>
               }
@@ -124,6 +141,49 @@ import { CanComponentDeactivate } from '../../core/guards/unsaved-changes.guard'
       .form-actions__delete {
         margin-right: auto;
       }
+
+      .brand-field {
+        position: relative;
+      }
+
+      .brand-suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 20;
+        margin: 0.25rem 0 0;
+        padding: 0.25rem;
+        list-style: none;
+        background: var(--zf-surface-2);
+        border: 1px solid var(--zf-border);
+        border-radius: var(--zf-radius-sm);
+        max-height: 220px;
+        overflow-y: auto;
+        box-shadow: var(--zf-shadow);
+      }
+
+      .brand-suggestions li {
+        margin: 0;
+      }
+
+      .brand-suggestions button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 0.45rem 0.6rem;
+        background: none;
+        border: none;
+        border-radius: var(--zf-radius-sm);
+        color: var(--zf-text);
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+
+      .brand-suggestions button:hover,
+      .brand-suggestions button:focus {
+        background: var(--zf-surface);
+      }
     `,
   ],
 })
@@ -201,6 +261,23 @@ export class DeviceFormComponent implements OnInit, CanComponentDeactivate {
     }
   }
 
+  protected readonly showBrandSuggestions = signal(false);
+
+  protected brandSuggestions(): string[] {
+    const all = DEVICE_TYPE_BRANDS[this.form.controls.deviceType.value];
+    const typed = this.form.controls.brand.value.trim().toLowerCase();
+    if (!typed) {
+      return all;
+    }
+    return all.filter((b) => b.toLowerCase().includes(typed));
+  }
+
+  protected selectBrand(brand: string): void {
+    this.form.controls.brand.setValue(brand);
+    this.form.controls.brand.markAsDirty();
+    this.showBrandSuggestions.set(false);
+  }
+
   hasUnsavedChanges(): boolean {
     return this.form.dirty && !this.savedSuccessfully;
   }
@@ -237,8 +314,8 @@ export class DeviceFormComponent implements OnInit, CanComponentDeactivate {
       this.savedSuccessfully = true;
       this.toast.success(this.deviceId ? 'Equipo actualizado correctamente.' : 'Equipo registrado correctamente.');
       await this.router.navigate(['/clientes', device.customerId]);
-    } catch {
-      this.toast.error('No se pudo guardar el equipo. Intentá nuevamente.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo guardar el equipo. Intentá nuevamente.');
     } finally {
       this.saving.set(false);
     }
@@ -258,8 +335,8 @@ export class DeviceFormComponent implements OnInit, CanComponentDeactivate {
       this.savedSuccessfully = true;
       this.toast.success('Equipo eliminado.');
       await this.router.navigate(['/clientes', this.customerId]);
-    } catch {
-      this.toast.error('No se pudo eliminar el equipo.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el equipo.');
     } finally {
       this.deleting.set(false);
     }

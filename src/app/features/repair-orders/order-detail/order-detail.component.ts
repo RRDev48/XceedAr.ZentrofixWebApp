@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -16,6 +16,7 @@ import {
   Attachment,
   AttachmentCategory,
   ATTACHMENT_CATEGORY_LABELS,
+  Communication,
   COMMUNICATION_TEMPLATE_LABELS,
   CommunicationTemplateType,
   InventoryItem,
@@ -64,9 +65,11 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <span class="zf-badge" [class.zf-badge--green]="paymentStatus() === 'pagado_total'">
               {{ paymentStatusLabels[paymentStatus()] }}
             </span>
-            <a [routerLink]="['/ordenes', order()!.id, 'reingreso']" class="zf-btn zf-btn--ghost zf-btn--sm">
-              + Crear reingreso
-            </a>
+            @if (canCreateReingreso()) {
+              <a [routerLink]="['/ordenes', order()!.id, 'reingreso']" class="zf-btn zf-btn--ghost zf-btn--sm">
+                + Crear reingreso
+              </a>
+            }
             <button type="button" class="zf-btn zf-btn--whatsapp zf-btn--sm" (click)="openWhatsAppModal()">
               Enviar por WhatsApp
             </button>
@@ -101,14 +104,31 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               @if (order()!.receptionNotes) {
                 <p><strong>Observaciones de recepción:</strong> {{ order()!.receptionNotes }}</p>
               }
-              @if (order()!.estimatedCompletionDate) {
-                <p><strong>Fecha estimada:</strong> {{ order()!.estimatedCompletionDate | date: 'dd/MM/yyyy' }}</p>
+              @if (order()!.deviceAccessories) {
+                <p><strong>Accesorios entregados:</strong> {{ order()!.deviceAccessories }}</p>
+              }
+              @if (order()!.deviceAccessCode) {
+                <p><strong>Contraseña / patrón:</strong> {{ order()!.deviceAccessCode }}</p>
               }
             </section>
 
             <section class="zf-card">
               <h2>Diagnóstico</h2>
               <form [formGroup]="diagnosisForm" (ngSubmit)="saveDiagnosis()" novalidate>
+                <div class="zf-grid-2">
+                  <div class="zf-field">
+                    <label for="priority">Prioridad</label>
+                    <select id="priority" class="zf-select" formControlName="priority">
+                      @for (p of priorities; track p) {
+                        <option [value]="p">{{ priorityLabels[p] }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="zf-field">
+                    <label for="estimatedCompletionDate">Fecha estimada de entrega</label>
+                    <input id="estimatedCompletionDate" type="date" class="zf-input" formControlName="estimatedCompletionDate" />
+                  </div>
+                </div>
                 <div class="zf-field">
                   <label for="technicalDiagnosis">Diagnóstico técnico</label>
                   <textarea id="technicalDiagnosis" class="zf-textarea" formControlName="technicalDiagnosis"></textarea>
@@ -452,6 +472,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               }
             </section>
 
+            @if (order()!.status === 'entregado') {
             <section class="zf-card">
               <h2>Garantía</h2>
               @if (warranty()) {
@@ -492,11 +513,23 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 </div>
               }
             </section>
+            }
 
             <section class="zf-card">
               <div class="section-header">
                 <h2>Comprobante y adjuntos</h2>
                 <div class="section-header__actions">
+                  <button
+                    type="button"
+                    class="zf-btn zf-btn--ghost zf-btn--sm"
+                    [disabled]="generatingWorkOrder()"
+                    (click)="generateWorkOrder()"
+                  >
+                    @if (generatingWorkOrder()) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Orden de trabajo
+                  </button>
                   <button
                     type="button"
                     class="zf-btn zf-btn--ghost zf-btn--sm"
@@ -506,7 +539,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     @if (generatingReceipt()) {
                       <span class="zf-spinner"></span>
                     }
-                    Descargar PDF
+                    Comprobante de entrega
                   </button>
                 </div>
               </div>
@@ -531,6 +564,36 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                       <button type="button" class="zf-btn zf-btn--ghost zf-btn--sm" (click)="viewAttachment(a.storagePath)">
                         Ver
                       </button>
+                      <button
+                        type="button"
+                        class="zf-btn zf-btn--ghost zf-btn--sm zf-btn--danger"
+                        [disabled]="deletingAttachmentId() === a.id"
+                        (click)="deleteAttachment(a)"
+                      >
+                        @if (deletingAttachmentId() === a.id) {
+                          <span class="zf-spinner"></span>
+                        }
+                        Borrar
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+
+            <section class="zf-card">
+              <h2>Historial de WhatsApp</h2>
+              @if (communications().length === 0) {
+                <p class="zf-hint">Todavía no se envió ningún mensaje por WhatsApp.</p>
+              } @else {
+                <div class="attachment-list">
+                  @for (c of communications(); track c.id) {
+                    <div class="attachment-item">
+                      <span class="attachment-item__name">{{ communicationTemplateLabels[c.templateType] }}</span>
+                      <span class="zf-badge zf-badge--muted">
+                        {{ c.status === 'abierto_en_whatsapp' ? 'Abierto en WhatsApp' : 'Preparado' }}
+                      </span>
+                      <span class="payment-item__date">{{ c.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
                     </div>
                   }
                 </div>
@@ -603,35 +666,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 <button type="button" class="modal-close" (click)="closeWhatsAppModal()">✕</button>
               </div>
 
-              @if (whatsAppModalStep() === 'categoria') {
-                <p class="zf-hint zf-hint--block" style="margin-top: 0;">¿Qué querés enviarle a {{ order()!.customerName }}?</p>
-                <div class="modal-options">
-                  <button type="button" class="modal-option" (click)="selectWhatsAppCategory('plantilla')">
-                    <span class="modal-option__icon">💬</span>
-                    <span>
-                      <strong>Plantilla general</strong>
-                      <small>Confirmación, diagnóstico, recordatorio, estado, etc.</small>
-                    </span>
-                  </button>
-                  <button type="button" class="modal-option" (click)="selectWhatsAppCategory('presupuesto')">
-                    <span class="modal-option__icon">💰</span>
-                    <span>
-                      <strong>Presupuesto</strong>
-                      <small>Envía el detalle de un presupuesto formal ya cargado.</small>
-                    </span>
-                  </button>
-                  <button type="button" class="modal-option" (click)="selectWhatsAppCategory('comprobante')">
-                    <span class="modal-option__icon">🧾</span>
-                    <span>
-                      <strong>Comprobante digital</strong>
-                      <small>Genera el PDF y comparte el enlace de descarga.</small>
-                    </span>
-                  </button>
-                </div>
-              }
-
               @if (whatsAppModalStep() === 'plantilla') {
-                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('categoria')">← Volver</button>
                 <div class="zf-field">
                   <label for="modalTemplate">Plantilla</label>
                   <select
@@ -658,6 +693,22 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 </div>
                 @if (!whatsappLink()) {
                   <p class="zf-error">El teléfono del cliente no es válido para WhatsApp. Revisá el dato en la ficha del cliente.</p>
+                } @else if (selectedTemplate === 'confirmacion_recepcion') {
+                  <p class="zf-hint zf-hint--block" style="margin-top: 0;">
+                    Se va a generar la orden de trabajo en PDF y se va a compartir el enlace de descarga junto con este
+                    mensaje.
+                  </p>
+                  <button
+                    type="button"
+                    class="zf-btn zf-btn--whatsapp modal-submit"
+                    [disabled]="sendingWorkOrder()"
+                    (click)="sendWorkOrderWhatsApp()"
+                  >
+                    @if (sendingWorkOrder()) {
+                      <span class="zf-spinner"></span>
+                    }
+                    Adjuntar orden de trabajo y abrir WhatsApp
+                  </button>
                 } @else {
                   <a
                     [href]="whatsappLink()!"
@@ -669,10 +720,26 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     Abrir WhatsApp
                   </a>
                 }
+
+                @if (canManagePricing() || canSendDeliveryReceipt()) {
+                  <div class="modal-alt-actions">
+                    <span class="zf-hint">¿Preferís enviar otra cosa?</span>
+                    @if (canManagePricing()) {
+                      <button type="button" class="link-btn" (click)="selectWhatsAppCategory('presupuesto')">Un presupuesto</button>
+                    }
+                    @if (canSendDeliveryReceipt()) {
+                      <button type="button" class="link-btn" (click)="selectWhatsAppCategory('comprobante')">
+                        El comprobante de entrega
+                      </button>
+                    } @else if (canManagePricing()) {
+                      <span class="zf-hint">· El comprobante de entrega estará disponible cuando se cargue el presupuesto.</span>
+                    }
+                  </div>
+                }
               }
 
               @if (whatsAppModalStep() === 'presupuesto') {
-                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('categoria')">← Volver</button>
+                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('plantilla')">← Volver</button>
                 @if (quotes().length === 0) {
                   <p class="zf-hint">Todavía no hay presupuestos formales cargados para esta orden.</p>
                   <a
@@ -715,10 +782,10 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               }
 
               @if (whatsAppModalStep() === 'comprobante') {
-                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('categoria')">← Volver</button>
+                <button type="button" class="modal-back" (click)="whatsAppModalStep.set('plantilla')">← Volver</button>
                 <p class="zf-hint zf-hint--block" style="margin-top: 0;">
-                  Se va a generar el comprobante en PDF (o actualizar el existente), y compartir el enlace de descarga
-                  por WhatsApp.
+                  Se va a generar el comprobante de entrega en PDF (o actualizar el existente), y compartir el enlace de
+                  descarga por WhatsApp.
                 </p>
                 <button
                   type="button"
@@ -1259,43 +1326,25 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         padding: 0.25rem;
       }
 
-      .modal-options {
+      .modal-alt-actions {
         display: flex;
-        flex-direction: column;
-        gap: 0.6rem;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.35rem;
+        margin-top: 0.9rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--zf-border-soft);
       }
 
-      .modal-option {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        text-align: left;
-        background: var(--zf-surface-2);
-        border: 1px solid var(--zf-border-soft);
-        border-radius: var(--zf-radius-sm);
-        padding: 0.85rem;
+      .modal-alt-actions .link-btn {
+        background: none;
+        border: none;
+        color: var(--zf-blue);
+        font-weight: 600;
+        font-size: 0.82rem;
         cursor: pointer;
-        color: var(--zf-text);
-      }
-
-      .modal-option:hover {
-        border-color: var(--zf-blue);
-      }
-
-      .modal-option__icon {
-        font-size: 1.4rem;
-      }
-
-      .modal-option strong {
-        display: block;
-        font-size: 0.92rem;
-      }
-
-      .modal-option small {
-        display: block;
-        color: var(--zf-text-muted);
-        font-size: 0.78rem;
-        margin-top: 0.15rem;
+        padding: 0;
+        text-decoration: underline;
       }
 
       .modal-back {
@@ -1344,7 +1393,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     `,
   ],
 })
-export class OrderDetailComponent implements OnInit {
+export class OrderDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly ordersService = inject(RepairOrdersService);
   private readonly whatsappService = inject(WhatsappService);
@@ -1360,6 +1409,13 @@ export class OrderDetailComponent implements OnInit {
   private readonly auth = inject(AuthService);
 
   protected readonly canManagePricing = computed(() => ['admin', 'recepcion'].includes(this.auth.profile()?.role ?? ''));
+  protected readonly canCreateReingreso = computed(() => {
+    const status = this.order()?.status;
+    return status === 'entregado' || status === 'cancelado';
+  });
+  // Antes de tener un total cargado, el comprobante de entrega saldría vacío (sin costo ni
+  // diagnóstico) — se oculta la opción hasta ese momento en vez de dejar mandar algo inútil.
+  protected readonly canSendDeliveryReceipt = computed(() => (this.order()?.total ?? 0) > 0);
   protected readonly firstErrorMessage = firstErrorMessage;
   protected readonly statusLabels = REPAIR_STATUS_LABELS;
   protected readonly statusOrder = REPAIR_STATUS_ORDER;
@@ -1400,17 +1456,22 @@ export class OrderDetailComponent implements OnInit {
 
   protected readonly attachments = signal<Attachment[]>([]);
   protected readonly attachmentCategoryLabels = ATTACHMENT_CATEGORY_LABELS;
+  protected readonly communicationTemplateLabels = COMMUNICATION_TEMPLATE_LABELS;
   protected readonly attachmentCategories: AttachmentCategory[] = [
     'foto_recepcion',
     'foto_diagnostico',
+    'orden_trabajo',
     'comprobante',
     'garantia',
     'otro',
   ];
   protected uploadCategory: AttachmentCategory = 'foto_recepcion';
   protected readonly uploadingFile = signal(false);
+  protected readonly deletingAttachmentId = signal<string | null>(null);
+  protected readonly generatingWorkOrder = signal(false);
   protected readonly generatingReceipt = signal(false);
   protected readonly sendingReceipt = signal(false);
+  protected readonly sendingWorkOrder = signal(false);
 
   protected readonly loading = signal(true);
   protected readonly savingDetails = signal(false);
@@ -1424,7 +1485,7 @@ export class OrderDetailComponent implements OnInit {
   private orderId = '';
 
   protected readonly whatsAppModalOpen = signal(false);
-  protected readonly whatsAppModalStep = signal<'categoria' | 'plantilla' | 'presupuesto' | 'comprobante'>('categoria');
+  protected readonly whatsAppModalStep = signal<'plantilla' | 'presupuesto' | 'comprobante'>('plantilla');
   protected whatsAppSelectedQuoteId: string | null = null;
 
   protected readonly savingPricing = signal(false);
@@ -1432,7 +1493,10 @@ export class OrderDetailComponent implements OnInit {
   protected readonly diagnosisForm = this.fb.nonNullable.group({
     technicalDiagnosis: [''],
     recommendedWork: [''],
+    priority: ['normal' as RepairPriority],
+    estimatedCompletionDate: [''],
   });
+  protected readonly priorities: RepairPriority[] = ['baja', 'normal', 'alta', 'urgente'];
 
   protected readonly pricingForm = this.fb.nonNullable.group({
     customerPrice: [0, [positiveAmountValidator()]],
@@ -1440,6 +1504,7 @@ export class OrderDetailComponent implements OnInit {
   });
 
   protected readonly inventoryItems = signal<InventoryItem[]>([]);
+  protected readonly communications = signal<Communication[]>([]);
   protected readonly calcItems = signal<
     { description: string; quantity: number; unitPrice: number; inventoryItemId: string | null }[]
   >([{ description: '', quantity: 1, unitPrice: 0, inventoryItemId: null }]);
@@ -1524,8 +1589,8 @@ export class OrderDetailComponent implements OnInit {
       this.calcItems.set([{ description: '', quantity: 1, unitPrice: 0, inventoryItemId: null }]);
       this.calcMarkupPercent = 0;
       this.toast.success('Presupuesto creado. Lo vas a ver en "Presupuestos formales", más abajo.');
-    } catch {
-      this.toast.error('No se pudo guardar el presupuesto.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo guardar el presupuesto.');
     } finally {
       this.savingCalcQuote.set(false);
     }
@@ -1538,8 +1603,8 @@ export class OrderDetailComponent implements OnInit {
       this.loadingQuoteHistory.set(true);
       try {
         this.deletedQuotes.set(await this.quotesService.listDeletedByOrder(this.orderId));
-      } catch {
-        this.toast.error('No se pudo cargar el historial de presupuestos.');
+      } catch (error) {
+        this.toast.error(error instanceof Error ? error.message : 'No se pudo cargar el historial de presupuestos.');
       } finally {
         this.loadingQuoteHistory.set(false);
       }
@@ -1562,8 +1627,8 @@ export class OrderDetailComponent implements OnInit {
         this.deletedQuotes.set(await this.quotesService.listDeletedByOrder(this.orderId));
       }
       this.toast.success('Presupuesto eliminado. Queda disponible en el historial.');
-    } catch {
-      this.toast.error('No se pudo eliminar el presupuesto.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el presupuesto.');
     } finally {
       this.quoteActionBusy.set(null);
     }
@@ -1582,7 +1647,7 @@ export class OrderDetailComponent implements OnInit {
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const [order, history, quotes, payments, warranty, attachments, inventoryItems] = await Promise.all([
+      const [order, history, quotes, payments, warranty, attachments, inventoryItems, communications] = await Promise.all([
         this.ordersService.getById(this.orderId),
         this.ordersService.getStatusHistory(this.orderId),
         this.quotesService.listByOrder(this.orderId),
@@ -1590,6 +1655,7 @@ export class OrderDetailComponent implements OnInit {
         this.warrantiesService.getByOrder(this.orderId),
         this.attachmentsService.listByOrder(this.orderId),
         this.inventoryService.list(),
+        this.whatsappService.listByOrder(this.orderId),
       ]);
       this.order.set(order);
       this.history.set(history);
@@ -1598,12 +1664,15 @@ export class OrderDetailComponent implements OnInit {
       this.warranty.set(warranty);
       this.attachments.set(attachments);
       this.inventoryItems.set(inventoryItems);
+      this.communications.set(communications);
       if (order) {
         this.newStatus = order.status;
         this.paymentStatus.set(this.ordersService.paymentStatusOf(order));
         this.diagnosisForm.patchValue({
           technicalDiagnosis: order.technicalDiagnosis ?? '',
           recommendedWork: order.recommendedWork ?? '',
+          priority: order.priority,
+          estimatedCompletionDate: order.estimatedCompletionDate ?? '',
         });
         this.pricingForm.patchValue({
           customerPrice: order.customerPrice,
@@ -1618,8 +1687,8 @@ export class OrderDetailComponent implements OnInit {
         this.originalOrder.set(originalOrder);
         this.reingresos.set(reingresos);
       }
-    } catch {
-      this.toast.error('No se pudo cargar la orden.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo cargar la orden.');
     } finally {
       this.loading.set(false);
     }
@@ -1630,7 +1699,7 @@ export class OrderDetailComponent implements OnInit {
     if (!order) {
       return;
     }
-    this.messageText = this.whatsappService.buildMessage(order, this.selectedTemplate);
+    this.messageText = this.whatsappService.buildMessage(order, this.selectedTemplate, this.warranty());
   }
 
   whatsappLink(): string | null {
@@ -1649,25 +1718,34 @@ export class OrderDetailComponent implements OnInit {
     try {
       await this.whatsappService.logPrepared(order, this.selectedTemplate, this.messageText, true);
       this.toast.success('Se abrió WhatsApp con el mensaje preparado.');
+      this.communications.set(await this.whatsappService.listByOrder(this.orderId));
     } catch {
       this.toast.error('El mensaje se abrió en WhatsApp, pero no se pudo registrar en el sistema.');
     }
   }
 
   openWhatsAppModal(): void {
-    this.whatsAppModalStep.set('categoria');
+    const order = this.order();
+    if (order) {
+      this.selectedTemplate = this.whatsappService.suggestedTemplate(order.status);
+      this.regenerateMessage();
+    }
+    this.whatsAppModalStep.set('plantilla');
     this.whatsAppSelectedQuoteId = null;
     this.whatsAppModalOpen.set(true);
+    document.body.style.overflow = 'hidden';
   }
 
   closeWhatsAppModal(): void {
     this.whatsAppModalOpen.set(false);
+    document.body.style.overflow = '';
   }
 
-  selectWhatsAppCategory(category: 'plantilla' | 'presupuesto' | 'comprobante'): void {
-    if (category === 'plantilla') {
-      this.regenerateMessage();
-    }
+  ngOnDestroy(): void {
+    document.body.style.overflow = '';
+  }
+
+  selectWhatsAppCategory(category: 'presupuesto' | 'comprobante'): void {
     if (category === 'presupuesto' && this.quotes().length === 1) {
       this.whatsAppSelectedQuoteId = this.quotes()[0].id;
     }
@@ -1707,16 +1785,16 @@ export class OrderDetailComponent implements OnInit {
         receptionNotes: order.receptionNotes,
         technicalDiagnosis: value.technicalDiagnosis || null,
         recommendedWork: value.recommendedWork || null,
-        priority: order.priority,
-        estimatedCompletionDate: order.estimatedCompletionDate,
+        priority: value.priority,
+        estimatedCompletionDate: value.estimatedCompletionDate || null,
         customerPrice: order.customerPrice,
         discount: order.discount,
         deposit: order.deposit,
       });
       this.order.set(updated);
       this.toast.success('Diagnóstico guardado correctamente.');
-    } catch {
-      this.toast.error('No se pudo guardar el diagnóstico.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo guardar el diagnóstico.');
     } finally {
       this.savingDetails.set(false);
     }
@@ -1745,8 +1823,8 @@ export class OrderDetailComponent implements OnInit {
       this.order.set(updated);
       this.paymentStatus.set(this.ordersService.paymentStatusOf(updated));
       this.toast.success('Presupuesto guardado correctamente.');
-    } catch {
-      this.toast.error('No se pudo guardar el presupuesto.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo guardar el presupuesto.');
     } finally {
       this.savingPricing.set(false);
     }
@@ -1774,8 +1852,8 @@ export class OrderDetailComponent implements OnInit {
       this.history.set(await this.ordersService.getStatusHistory(this.orderId));
       this.statusNote = '';
       this.toast.success(`Estado actualizado a "${this.statusLabels[updated.status]}".`);
-    } catch {
-      this.toast.error('No se pudo actualizar el estado.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el estado.');
     } finally {
       this.changingStatus.set(false);
     }
@@ -1812,8 +1890,8 @@ export class OrderDetailComponent implements OnInit {
       this.paymentIsDeposit = false;
       await this.load();
       this.toast.success('Pago registrado correctamente.');
-    } catch {
-      this.toast.error('No se pudo registrar el pago.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo registrar el pago.');
     } finally {
       this.registeringPayment.set(false);
     }
@@ -1837,8 +1915,8 @@ export class OrderDetailComponent implements OnInit {
       const warranty = await this.warrantiesService.create(this.orderId, this.warrantyCoverage, this.warrantyDays);
       this.warranty.set(warranty);
       this.toast.success('Garantía generada correctamente.');
-    } catch {
-      this.toast.error('No se pudo generar la garantía.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo generar la garantía.');
     } finally {
       this.creatingWarranty.set(false);
     }
@@ -1855,8 +1933,8 @@ export class OrderDetailComponent implements OnInit {
       await this.attachmentsService.upload(this.orderId, file, this.uploadCategory);
       this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
       this.toast.success('Archivo subido correctamente.');
-    } catch {
-      this.toast.error('No se pudo subir el archivo.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo subir el archivo.');
     } finally {
       this.uploadingFile.set(false);
       input.value = '';
@@ -1867,14 +1945,103 @@ export class OrderDetailComponent implements OnInit {
     try {
       const url = await this.attachmentsService.getSignedUrl(storagePath);
       window.open(url, '_blank', 'noopener');
-    } catch {
-      this.toast.error('No se pudo abrir el archivo.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo abrir el archivo.');
     }
   }
 
-  private async buildReceipt(order: RepairOrder): Promise<{ blob: Blob; fileName: string }> {
-    const blob = await this.receiptService.generate(order, this.payments(), this.warranty());
-    return { blob, fileName: `Comprobante-${order.code}.pdf` };
+  async deleteAttachment(attachment: Attachment): Promise<void> {
+    if (this.deletingAttachmentId()) {
+      return;
+    }
+    if (!window.confirm(`¿Borrar "${attachment.fileName}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    this.deletingAttachmentId.set(attachment.id);
+    try {
+      await this.attachmentsService.remove(attachment.id, attachment.storagePath);
+      this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
+      this.toast.success('Archivo eliminado.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo borrar el archivo.');
+    } finally {
+      this.deletingAttachmentId.set(null);
+    }
+  }
+
+  private async buildDeliveryReceipt(order: RepairOrder): Promise<{ blob: Blob; fileName: string }> {
+    const blob = await this.receiptService.generateDeliveryReceipt(order, this.payments(), this.warranty());
+    return { blob, fileName: `Comprobante-entrega-${order.code}.pdf` };
+  }
+
+  private downloadBlob(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async generateWorkOrder(): Promise<void> {
+    const order = this.order();
+    if (!order || this.generatingWorkOrder()) {
+      return;
+    }
+    this.generatingWorkOrder.set(true);
+    try {
+      const blob = await this.receiptService.generateWorkOrder(order);
+      const fileName = `Orden-de-trabajo-${order.code}.pdf`;
+
+      await this.attachmentsService.upsertForOrder(this.orderId, blob, fileName, 'orden_trabajo');
+      this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
+
+      this.downloadBlob(blob, fileName);
+      this.toast.success('Orden de trabajo generada y guardada en los adjuntos de la orden.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo generar la orden de trabajo.');
+    } finally {
+      this.generatingWorkOrder.set(false);
+    }
+  }
+
+  /** Adjunta el enlace de la orden de trabajo al mensaje de recepción y abre WhatsApp con los dos juntos. */
+  async sendWorkOrderWhatsApp(): Promise<void> {
+    const order = this.order();
+    if (!order || this.sendingWorkOrder()) {
+      return;
+    }
+    this.sendingWorkOrder.set(true);
+    try {
+      const blob = await this.receiptService.generateWorkOrder(order);
+      const fileName = `Orden-de-trabajo-${order.code}.pdf`;
+      const attachment = await this.attachmentsService.upsertForOrder(this.orderId, blob, fileName, 'orden_trabajo');
+      this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
+
+      const expiresInSeconds = 60 * 60 * 24 * 7;
+      const signedUrl = await this.attachmentsService.getSignedUrl(attachment.storagePath, expiresInSeconds);
+      const shortUrl = await this.shortLinksService.upsertForOrder(
+        this.orderId,
+        `Orden de trabajo ${order.code}`,
+        signedUrl,
+        expiresInSeconds,
+      );
+      const message = this.whatsappService.appendWorkOrderLink(this.messageText, shortUrl);
+      const link = this.whatsappService.buildLink(order, message);
+      if (!link) {
+        this.toast.error('El teléfono del cliente no es válido para WhatsApp.');
+        return;
+      }
+
+      await this.whatsappService.logPrepared(order, this.selectedTemplate, message, true);
+      this.communications.set(await this.whatsappService.listByOrder(this.orderId));
+      window.open(link, '_blank', 'noopener');
+      this.toast.success('Se generó la orden de trabajo y se abrió WhatsApp con el mensaje y el enlace.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo generar la orden de trabajo.');
+    } finally {
+      this.sendingWorkOrder.set(false);
+    }
   }
 
   async generateReceipt(): Promise<void> {
@@ -1884,21 +2051,16 @@ export class OrderDetailComponent implements OnInit {
     }
     this.generatingReceipt.set(true);
     try {
-      const { blob, fileName } = await this.buildReceipt(order);
+      const { blob, fileName } = await this.buildDeliveryReceipt(order);
 
       await this.attachmentsService.upsertForOrder(this.orderId, blob, fileName, 'comprobante');
       this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      this.downloadBlob(blob, fileName);
 
       this.toast.success('Comprobante generado y guardado en los adjuntos de la orden.');
-    } catch {
-      this.toast.error('No se pudo generar el comprobante.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo generar el comprobante.');
     } finally {
       this.generatingReceipt.set(false);
     }
@@ -1911,7 +2073,7 @@ export class OrderDetailComponent implements OnInit {
     }
     this.sendingReceipt.set(true);
     try {
-      const { blob, fileName } = await this.buildReceipt(order);
+      const { blob, fileName } = await this.buildDeliveryReceipt(order);
       const attachment = await this.attachmentsService.upsertForOrder(this.orderId, blob, fileName, 'comprobante');
       this.attachments.set(await this.attachmentsService.listByOrder(this.orderId));
 
@@ -1931,10 +2093,11 @@ export class OrderDetailComponent implements OnInit {
       }
 
       await this.whatsappService.logPrepared(order, 'comprobante_digital', message, true);
+      this.communications.set(await this.whatsappService.listByOrder(this.orderId));
       window.open(link, '_blank', 'noopener');
       this.toast.success('Se generó el comprobante y se abrió WhatsApp con el enlace de descarga.');
-    } catch {
-      this.toast.error('No se pudo enviar el comprobante por WhatsApp.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo enviar el comprobante por WhatsApp.');
     } finally {
       this.sendingReceipt.set(false);
     }
@@ -1961,8 +2124,8 @@ export class OrderDetailComponent implements OnInit {
       window.open(link, '_blank', 'noopener');
       await this.load();
       this.toast.success('Se abrió WhatsApp con el detalle del presupuesto.');
-    } catch {
-      this.toast.error('No se pudo preparar el envío del presupuesto.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo preparar el envío del presupuesto.');
     } finally {
       this.quoteActionBusy.set(null);
     }
@@ -1986,8 +2149,8 @@ export class OrderDetailComponent implements OnInit {
       await this.quotesService.respond(quoteId, status, respondedVia || 'No especificado');
       await this.load();
       this.toast.success(`Respuesta registrada: ${verb}.`);
-    } catch {
-      this.toast.error('No se pudo registrar la respuesta del presupuesto.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo registrar la respuesta del presupuesto.');
     } finally {
       this.quoteActionBusy.set(null);
     }

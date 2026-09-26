@@ -279,6 +279,17 @@ type WizardStep = 'cliente' | 'equipo' | 'orden';
               <textarea id="receptionNotes" class="zf-textarea" formControlName="receptionNotes"></textarea>
             </div>
 
+            <div class="zf-field">
+              <label for="deviceAccessCode">Contraseña o patrón de desbloqueo</label>
+              <input
+                id="deviceAccessCode"
+                type="text"
+                class="zf-input"
+                formControlName="deviceAccessCode"
+                placeholder="Opcional — se imprime en la orden de trabajo"
+              />
+            </div>
+
             <div class="zf-grid-2">
               <div class="zf-field">
                 <label for="priority">Prioridad</label>
@@ -478,6 +489,7 @@ export class OrderFormComponent implements OnInit, CanComponentDeactivate {
   protected readonly orderForm = this.fb.nonNullable.group({
     reportedFault: ['', [Validators.required, Validators.minLength(4)]],
     receptionNotes: [''],
+    deviceAccessCode: [''],
     priority: ['normal' as RepairPriority, [Validators.required]],
     estimatedCompletionDate: [''],
   });
@@ -581,8 +593,8 @@ export class OrderFormComponent implements OnInit, CanComponentDeactivate {
       });
       this.toast.success('Cliente creado correctamente.');
       await this.pickCustomer(customer);
-    } catch {
-      this.toast.error('No se pudo crear el cliente.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo crear el cliente.');
     } finally {
       this.savingCustomer.set(false);
     }
@@ -618,8 +630,8 @@ export class OrderFormComponent implements OnInit, CanComponentDeactivate {
       });
       this.toast.success('Equipo registrado correctamente.');
       this.pickDevice(device);
-    } catch {
-      this.toast.error('No se pudo registrar el equipo.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo registrar el equipo.');
     } finally {
       this.savingDevice.set(false);
     }
@@ -641,6 +653,7 @@ export class OrderFormComponent implements OnInit, CanComponentDeactivate {
         deviceId: this.selectedDevice()!.id,
         reportedFault: value.reportedFault,
         receptionNotes: value.receptionNotes || null,
+        deviceAccessCode: value.deviceAccessCode || null,
         priority: value.priority,
         estimatedCompletionDate: value.estimatedCompletionDate || null,
         relatedOrderId: this.originalOrderId,
@@ -648,8 +661,8 @@ export class OrderFormComponent implements OnInit, CanComponentDeactivate {
       this.orderCreated = true;
       this.toast.success(`Orden ${order.code} creada correctamente.`);
       await this.router.navigate(['/ordenes', order.id]);
-    } catch {
-      this.toast.error('No se pudo crear la orden. Intentá nuevamente.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo crear la orden. Intentá nuevamente.');
     } finally {
       this.savingOrder.set(false);
     }

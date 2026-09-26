@@ -354,8 +354,8 @@ export class OrderListComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       this.technicians.set(await this.profilesService.listActiveTechnicians());
-    } catch {
-      this.toast.error('No se pudieron cargar los técnicos.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudieron cargar los técnicos.');
     }
     if (this.route.snapshot.queryParamMap.get('estancadas') === '1') {
       this.onlyStale = true;
@@ -474,8 +474,8 @@ export class OrderListComponent implements OnInit {
         return next;
       });
       this.toast.success(`${order.code}: estado actualizado a "${this.statusLabels[updated.status]}".`);
-    } catch {
-      this.toast.error('No se pudo actualizar el estado.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el estado.');
     } finally {
       this.updatingIds.update((ids) => {
         const next = new Set(ids);
@@ -496,8 +496,8 @@ export class OrderListComponent implements OnInit {
         assignedTechnicianName: technician ? (technician.fullName || technician.email) : null,
       } : o));
       this.toast.success(`${order.code}: técnico actualizado.`);
-    } catch {
-      this.toast.error('No se pudo asignar el técnico.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo asignar el técnico.');
     } finally {
       this.updatingIds.update((ids) => { const next = new Set(ids); next.delete(order.id); return next; });
     }
@@ -526,8 +526,8 @@ export class OrderListComponent implements OnInit {
         this.orders.set(results);
         this.daysInStatusMap.set(await this.ordersService.getDaysInStatusMap(results.map((o) => o.id)));
       }
-    } catch {
-      this.toast.error('No se pudieron cargar las órdenes.');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudieron cargar las órdenes.');
     } finally {
       this.loading.set(false);
     }

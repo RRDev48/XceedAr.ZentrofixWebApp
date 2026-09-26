@@ -10,6 +10,7 @@ interface ProfileRow {
   role: UserRole;
   active: boolean;
   workshop_id: string;
+  workshops: { name: string } | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +23,7 @@ function mapProfile(row: ProfileRow): Profile {
     role: row.role,
     active: row.active,
     workshopId: row.workshop_id,
+    workshopName: row.workshops?.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -60,12 +62,12 @@ export class AuthService {
   private async loadProfile(userId: string): Promise<void> {
     const { data, error } = await this.supabase.client
       .from('profiles')
-      .select('id, full_name, email, role, active, workshop_id, created_at, updated_at')
+      .select('id, full_name, email, role, active, workshop_id, workshops(name), created_at, updated_at')
       .eq('id', userId)
       .maybeSingle();
 
     if (!error && data) {
-      this.profileSignal.set(mapProfile(data as ProfileRow));
+      this.profileSignal.set(mapProfile(data as unknown as ProfileRow));
     }
   }
 

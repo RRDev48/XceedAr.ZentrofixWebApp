@@ -86,6 +86,9 @@ export interface RepairOrder {
   balanceDue: number;
   deliveredAt: string | null;
   relatedOrderId: string | null;
+  /** Contraseña o patrón de desbloqueo del equipo, declarado por el cliente al recibirlo.
+   * Se imprime en la orden de trabajo; nunca en el comprobante de entrega. */
+  deviceAccessCode: string | null;
   assignedTechnicianId?: string | null;
   assignedTechnicianName?: string | null;
   createdAt: string;
@@ -94,7 +97,15 @@ export interface RepairOrder {
   // Datos combinados para listados (join)
   customerName?: string;
   customerPhone?: string;
+  customerDni?: string | null;
+  customerEmail?: string | null;
+  customerAddress?: string | null;
   deviceLabel?: string;
+  deviceType?: string;
+  deviceBrand?: string;
+  deviceModel?: string;
+  deviceImei?: string | null;
+  deviceAccessories?: string | null;
 }
 
 export interface RepairOrderFormValue {
@@ -105,6 +116,7 @@ export interface RepairOrderFormValue {
   priority: RepairPriority;
   estimatedCompletionDate: string | null;
   relatedOrderId?: string | null;
+  deviceAccessCode?: string | null;
 }
 
 export interface RepairStatusHistoryEntry {

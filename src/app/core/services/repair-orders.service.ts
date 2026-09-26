@@ -30,15 +30,20 @@ interface RepairOrderListRow {
   balance_due: number;
   delivered_at: string | null;
   related_order_id: string | null;
+  device_access_code: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
   customer_name: string;
   customer_phone: string;
+  customer_dni: string | null;
+  customer_email: string | null;
+  customer_address: string | null;
   device_brand: string;
   device_model: string;
   device_type: string;
   device_imei: string | null;
+  device_accessories: string | null;
 }
 
 function mapRow(row: RepairOrderListRow): RepairOrder {
@@ -62,12 +67,21 @@ function mapRow(row: RepairOrderListRow): RepairOrder {
     balanceDue: Number(row.balance_due),
     deliveredAt: row.delivered_at,
     relatedOrderId: row.related_order_id,
+    deviceAccessCode: row.device_access_code,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
+    customerDni: row.customer_dni,
+    customerEmail: row.customer_email,
+    customerAddress: row.customer_address,
     deviceLabel: `${row.device_brand} ${row.device_model}`.trim(),
+    deviceType: row.device_type,
+    deviceBrand: row.device_brand,
+    deviceModel: row.device_model,
+    deviceImei: row.device_imei,
+    deviceAccessories: row.device_accessories,
   };
 }
 
@@ -230,7 +244,7 @@ export class RepairOrdersService {
     if (!orders.length) return orders;
     const { data, error } = await this.supabase.client
       .from('repair_order_assignments')
-      .select('repair_order_id, technician_id, profiles!repair_order_assignments_technician_id_fkey(full_name)')
+      .select('repair_order_id, technician_id, profiles!repair_order_assignments_technician_id_workshop_fkey(full_name)')
       .in('repair_order_id', orders.map((o) => o.id));
     if (error) throw new Error(error.message);
     // El cliente de Supabase no tiene tipos generados desde el schema: para un join
@@ -337,6 +351,7 @@ export class RepairOrdersService {
         priority: value.priority,
         estimated_completion_date: value.estimatedCompletionDate || null,
         related_order_id: value.relatedOrderId || null,
+        device_access_code: value.deviceAccessCode?.trim() || null,
       })
       .select('id')
       .single();
