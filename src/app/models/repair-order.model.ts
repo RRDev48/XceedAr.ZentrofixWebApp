@@ -133,8 +133,11 @@ export interface RepairOrderFilters {
   search: string;
   status: RepairStatus | 'todos';
   paymentStatus: PaymentStatus | 'todos';
+  priority?: RepairPriority | 'todos';
   brand: string;
   dateFrom: string | null;
   dateTo: string | null;
   technicianId?: string | 'todos' | 'sin_asignar';
+  sortBy?: 'received_at' | 'balance_due';
+  sortAscending?: boolean;
 }

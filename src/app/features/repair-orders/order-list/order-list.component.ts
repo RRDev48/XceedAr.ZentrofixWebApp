@@ -9,6 +9,8 @@ import {
   PAYMENT_STATUS_LABELS,
   PaymentStatus,
   RepairOrder,
+  REPAIR_PRIORITY_LABELS,
+  RepairPriority,
   REPAIR_STATUS_LABELS,
   REPAIR_STATUS_ORDER,
   RepairStatus,
@@ -27,8 +29,22 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           <h1>Órdenes de reparación</h1>
           <p class="zf-subtitle">{{ totalCount() }} órdenes encontradas</p>
         </div>
-        <a routerLink="/ordenes/nueva" class="zf-btn zf-btn--primary">+ Nueva orden</a>
+        <div class="header-actions">
+          <button type="button" class="zf-btn zf-btn--ghost" [disabled]="exportingCsv()" (click)="exportCsv()">
+            @if (exportingCsv()) {
+              <span class="zf-spinner"></span>
+            }
+            Exportar CSV
+          </button>
+          <a routerLink="/ordenes/nueva" class="zf-btn zf-btn--primary">+ Nueva orden</a>
+        </div>
       </div>
+
+      @if (unassignedCount() > 0) {
+        <button type="button" class="unassigned-chip" (click)="filterByUnassigned()">
+          ⚠ {{ unassignedCount() }} orden(es) sin técnico asignado
+        </button>
+      }
 
       <div class="zf-card filters-card">
         <div class="zf-field">
@@ -57,6 +73,15 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               <option value="todos">Todos</option>
               @for (p of paymentStatuses; track p) {
                 <option [value]="p">{{ paymentStatusLabels[p] }}</option>
+              }
+            </select>
+          </div>
+          <div class="zf-field">
+            <label for="priority">Prioridad</label>
+            <select id="priority" class="zf-select" [(ngModel)]="priority" (ngModelChange)="onFilterChange()">
+              <option value="todos">Todas</option>
+              @for (p of priorities; track p) {
+                <option [value]="p">{{ priorityLabels[p] }}</option>
               }
             </select>
           </div>
@@ -94,9 +119,10 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                 <th>Cliente</th>
                 <th>Equipo</th>
                 <th>Técnico</th>
+                <th>Prioridad</th>
                 <th>Estado</th>
-                <th>Ingreso</th>
-                <th>Saldo</th>
+                <th class="sortable" (click)="toggleSort('received_at')">Ingreso {{ sortIndicator('received_at') }}</th>
+                <th class="sortable" (click)="toggleSort('balance_due')">Saldo {{ sortIndicator('balance_due') }}</th>
                 <th>Cambiar estado</th>
                 <th></th>
               </tr>
@@ -104,7 +130,12 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <tbody>
               @for (o of pagedOrders(); track o.id) {
                 <tr>
-                  <td><strong>{{ o.code }}</strong></td>
+                  <td>
+                    <strong>{{ o.code }}</strong>
+                    @if (o.relatedOrderId) {
+                      <span class="zf-badge zf-badge--muted stale-badge" title="Reingreso de otra orden">↩ Reingreso</span>
+                    }
+                  </td>
                   <td>{{ o.customerName }}</td>
                   <td>{{ o.deviceLabel }}</td>
                   <td>
@@ -121,13 +152,31 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                     }
                   </td>
                   <td>
+                    <span
+                      class="zf-badge"
+                      [class.zf-badge--danger]="o.priority === 'urgente'"
+                      [class.zf-badge--warning]="o.priority === 'alta'"
+                      [class.zf-badge--muted]="o.priority === 'normal' || o.priority === 'baja'"
+                    >
+                      {{ priorityLabels[o.priority] }}
+                    </span>
+                  </td>
+                  <td>
                     <span class="zf-badge">{{ statusLabels[o.status] }}</span>
                     @if (isStale(o)) {
                       <span class="zf-badge zf-badge--warning stale-badge">⏱ {{ daysInStatus(o) }}d</span>
                     }
+                    @if (isOverdue(o)) {
+                      <span class="zf-badge zf-badge--danger stale-badge">⚠ Atrasada</span>
+                    }
                   </td>
                   <td>{{ o.receivedAt | date: 'dd/MM/yyyy' }}</td>
-                  <td>{{ o.balanceDue | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}</td>
+                  <td>
+                    {{ o.balanceDue | currency: 'ARS' : 'symbol-narrow' : '1.0-0' }}
+                    <span class="zf-badge zf-badge--muted stale-badge" [class.zf-badge--green]="paymentStatusOf(o) === 'pagado_total'">
+                      {{ paymentStatusLabels[paymentStatusOf(o)] }}
+                    </span>
+                  </td>
                   <td>
                     <select
                       class="zf-select zf-select--sm"
@@ -157,9 +206,22 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               <div class="order-card__meta">{{ o.customerName }} · {{ o.deviceLabel }}</div>
               <div class="order-card__meta">Ingreso: {{ o.receivedAt | date: 'dd/MM/yyyy' }}</div>
               <div class="order-card__meta">Técnico: {{ o.assignedTechnicianName || 'Sin asignar' }}</div>
-              @if (isStale(o)) {
-                <span class="zf-badge zf-badge--warning stale-badge">⏱ Estancada hace {{ daysInStatus(o) }} días</span>
-              }
+              <div class="order-card__badges">
+                @if (o.priority === 'urgente' || o.priority === 'alta') {
+                  <span class="zf-badge" [class.zf-badge--danger]="o.priority === 'urgente'" [class.zf-badge--warning]="o.priority === 'alta'">
+                    {{ priorityLabels[o.priority] }}
+                  </span>
+                }
+                @if (o.relatedOrderId) {
+                  <span class="zf-badge zf-badge--muted">↩ Reingreso</span>
+                }
+                @if (isStale(o)) {
+                  <span class="zf-badge zf-badge--warning">⏱ Estancada hace {{ daysInStatus(o) }} días</span>
+                }
+                @if (isOverdue(o)) {
+                  <span class="zf-badge zf-badge--danger">⚠ Atrasada</span>
+                }
+              </div>
               <select
                 class="zf-select zf-select--sm quick-status-mobile"
                 [value]="o.status"
@@ -200,6 +262,47 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         color: var(--zf-text-muted);
         margin: 0;
         font-size: 0.9rem;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .unassigned-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: none;
+        border: 1px solid var(--zf-border-soft);
+        border-radius: var(--zf-radius-sm);
+        color: var(--zf-text);
+        font-size: 0.82rem;
+        padding: 0.5rem 0.85rem;
+        margin-bottom: 1rem;
+        cursor: pointer;
+      }
+
+      .unassigned-chip:hover {
+        border-color: var(--zf-blue);
+      }
+
+      .sortable {
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      .sortable:hover {
+        color: var(--zf-blue);
+      }
+
+      .order-card__badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-top: 0.4rem;
       }
 
       .filters-card {
@@ -318,13 +421,24 @@ export class OrderListComponent implements OnInit {
   protected readonly statusOrder = REPAIR_STATUS_ORDER;
   protected readonly paymentStatusLabels = PAYMENT_STATUS_LABELS;
   protected readonly paymentStatuses: PaymentStatus[] = ['sin_pago', 'senia', 'pagado_parcial', 'pagado_total'];
+  protected readonly priorityLabels = REPAIR_PRIORITY_LABELS;
+  protected readonly priorities: RepairPriority[] = ['urgente', 'alta', 'normal', 'baja'];
+  protected readonly unassignedCount = signal(0);
+  protected readonly exportingCsv = signal(false);
+
+  // Estados finales: una orden en uno de estos ya no cuenta como "atrasada" aunque
+  // la fecha estimada de entrega haya pasado.
+  private static readonly FINAL_STATUSES: RepairStatus[] = ['entregado', 'cancelado', 'sin_reparacion'];
 
   protected search = '';
   protected status: RepairStatus | 'todos' = 'todos';
   protected paymentStatus: PaymentStatus | 'todos' = 'todos';
+  protected priority: RepairPriority | 'todos' = 'todos';
   protected brand = '';
   protected technicianId: string | 'todos' | 'sin_asignar' = 'todos';
   protected onlyStale = false;
+  protected sortBy: 'received_at' | 'balance_due' | null = null;
+  protected sortAscending = false;
   private filterTimeout?: ReturnType<typeof setTimeout>;
 
   // "onlyStale" y "paymentStatus" se calculan en el cliente (no son columnas de la
@@ -366,6 +480,120 @@ export class OrderListComponent implements OnInit {
       this.technicianId = this.auth.profile()!.id;
     }
     await this.load();
+    await this.refreshUnassignedCount();
+  }
+
+  protected filterByUnassigned(): void {
+    this.technicianId = 'sin_asignar';
+    this.onFilterChange();
+  }
+
+  private async refreshUnassignedCount(): Promise<void> {
+    try {
+      this.unassignedCount.set(await this.ordersService.countUnassignedActive());
+    } catch {
+      // No es crítico: si falla, el chip simplemente no se muestra.
+    }
+  }
+
+  protected toggleSort(column: 'received_at' | 'balance_due'): void {
+    if (this.sortBy === column) {
+      this.sortAscending = !this.sortAscending;
+    } else {
+      this.sortBy = column;
+      this.sortAscending = false;
+    }
+    this.page.set(1);
+    this.load();
+  }
+
+  protected sortIndicator(column: 'received_at' | 'balance_due'): string {
+    if (this.sortBy !== column) {
+      return '';
+    }
+    return this.sortAscending ? '▲' : '▼';
+  }
+
+  protected paymentStatusOf(order: RepairOrder): PaymentStatus {
+    return this.ordersService.paymentStatusOf(order);
+  }
+
+  protected isOverdue(order: RepairOrder): boolean {
+    if (!order.estimatedCompletionDate || OrderListComponent.FINAL_STATUSES.includes(order.status)) {
+      return false;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(`${order.estimatedCompletionDate}T00:00:00`) < today;
+  }
+
+  async exportCsv(): Promise<void> {
+    if (this.exportingCsv()) {
+      return;
+    }
+    this.exportingCsv.set(true);
+    try {
+      const orders = await this.ordersService.list({
+        search: this.search,
+        status: this.status,
+        paymentStatus: this.paymentStatus,
+        priority: this.priority,
+        brand: this.brand,
+        technicianId: this.technicianId,
+        sortBy: this.sortBy ?? undefined,
+        sortAscending: this.sortAscending,
+      });
+
+      let filtered = orders;
+      if (this.onlyStale) {
+        const days = await this.ordersService.getDaysInStatusMap(orders.map((o) => o.id));
+        filtered = orders.filter((o) => this.ordersService.isStale(o.status, days.get(o.id) ?? 0));
+      }
+
+      if (filtered.length === 0) {
+        this.toast.error('No hay órdenes para exportar con los filtros actuales.');
+        return;
+      }
+
+      const header = [
+        'Código',
+        'Cliente',
+        'Teléfono',
+        'Equipo',
+        'Técnico',
+        'Estado',
+        'Prioridad',
+        'Estado de pago',
+        'Ingreso',
+        'Saldo',
+      ];
+      const rows = filtered.map((o) => [
+        o.code,
+        o.customerName ?? '',
+        o.customerPhone ?? '',
+        o.deviceLabel ?? '',
+        o.assignedTechnicianName || 'Sin asignar',
+        this.statusLabels[o.status],
+        this.priorityLabels[o.priority],
+        this.paymentStatusLabels[this.ordersService.paymentStatusOf(o)],
+        new Date(o.receivedAt).toLocaleDateString('es-AR'),
+        o.balanceDue.toString(),
+      ]);
+      const csv = [header, ...rows]
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ordenes-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'No se pudo exportar el CSV.');
+    } finally {
+      this.exportingCsv.set(false);
+    }
   }
 
   onFilterChange(): void {
@@ -409,6 +637,7 @@ export class OrderListComponent implements OnInit {
       this.search = saved.search ?? '';
       this.status = saved.status ?? 'todos';
       this.paymentStatus = saved.paymentStatus ?? 'todos';
+      this.priority = saved.priority ?? 'todos';
       this.brand = saved.brand ?? '';
       this.technicianId = saved.technicianId ?? 'todos';
       this.onlyStale = Boolean(saved.onlyStale);
@@ -425,6 +654,7 @@ export class OrderListComponent implements OnInit {
           search: this.search,
           status: this.status,
           paymentStatus: this.paymentStatus,
+          priority: this.priority,
           brand: this.brand,
           technicianId: this.technicianId,
           onlyStale: this.onlyStale,
@@ -474,6 +704,7 @@ export class OrderListComponent implements OnInit {
         return next;
       });
       this.toast.success(`${order.code}: estado actualizado a "${this.statusLabels[updated.status]}".`);
+      await this.refreshUnassignedCount();
     } catch (error) {
       this.toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el estado.');
     } finally {
@@ -496,6 +727,7 @@ export class OrderListComponent implements OnInit {
         assignedTechnicianName: technician ? (technician.fullName || technician.email) : null,
       } : o));
       this.toast.success(`${order.code}: técnico actualizado.`);
+      await this.refreshUnassignedCount();
     } catch (error) {
       this.toast.error(error instanceof Error ? error.message : 'No se pudo asignar el técnico.');
     } finally {
@@ -508,7 +740,15 @@ export class OrderListComponent implements OnInit {
     try {
       if (this.isServerPaged()) {
         const { orders: results, total } = await this.ordersService.listPage(
-          { search: this.search, status: this.status, brand: this.brand, technicianId: this.technicianId },
+          {
+            search: this.search,
+            status: this.status,
+            priority: this.priority,
+            brand: this.brand,
+            technicianId: this.technicianId,
+            sortBy: this.sortBy ?? undefined,
+            sortAscending: this.sortAscending,
+          },
           this.page(),
           this.pageSize,
         );
@@ -520,8 +760,11 @@ export class OrderListComponent implements OnInit {
           search: this.search,
           status: this.status,
           paymentStatus: this.paymentStatus,
+          priority: this.priority,
           brand: this.brand,
           technicianId: this.technicianId,
+          sortBy: this.sortBy ?? undefined,
+          sortAscending: this.sortAscending,
         });
         this.orders.set(results);
         this.daysInStatusMap.set(await this.ordersService.getDaysInStatusMap(results.map((o) => o.id)));

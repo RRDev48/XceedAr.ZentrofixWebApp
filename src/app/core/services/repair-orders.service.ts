@@ -147,10 +147,13 @@ export class RepairOrdersService {
       .from('repair_orders_list')
       .select('*', withCount ? { count: 'exact' } : undefined)
       .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+      .order(filters.sortBy ?? 'created_at', { ascending: filters.sortBy ? (filters.sortAscending ?? false) : false });
 
     if (filters.status && filters.status !== 'todos') {
       query = query.eq('status', filters.status);
+    }
+    if (filters.priority && filters.priority !== 'todos') {
+      query = query.eq('priority', filters.priority);
     }
     if (filters.brand?.trim()) {
       query = query.ilike('device_brand', `%${filters.brand.trim()}%`);
@@ -238,6 +241,24 @@ export class RepairOrdersService {
       throw new Error(error.message);
     }
     return (data ?? []).map((row: { repair_order_id: string }) => row.repair_order_id);
+  }
+
+  /** Órdenes activas (sin estado final) que todavía no tienen técnico asignado. */
+  async countUnassignedActive(): Promise<number> {
+    const assignedIds = await this.assignedOrderIds();
+    let query = this.supabase.client
+      .from('repair_orders_list')
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null)
+      .not('status', 'in', '(entregado,cancelado,sin_reparacion)');
+    if (assignedIds.length) {
+      query = query.not('id', 'in', `(${assignedIds.join(',')})`);
+    }
+    const { count, error } = await query;
+    if (error) {
+      throw new Error(error.message);
+    }
+    return count ?? 0;
   }
 
   private async withAssignments(orders: RepairOrder[]): Promise<RepairOrder[]> {
